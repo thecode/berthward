@@ -8,11 +8,14 @@ Tried on a real server and working: the web terminal behind a real reverse proxy
 
 To do outside the code:
 
-- The name is Berthward (checked against GitHub, Docker Hub, npm, PyPI, Steam, the App Store, the UK company register and common domains). Still open: a search of the official trademark registers (Classes 9 and 42) and Google Play, and registering a domain.
+- The name is Berthward. Checked on 2026-11-21 with no record of the word or its close spellings: the USPTO, EUIPO, TMview and WIPO Global Brand Database trademark registers (all classes, live and dead), Google Play, GitHub, Docker Hub, npm, PyPI, Steam, the App Store, the UK company register and a web search. The domains `.com`, `.net`, `.org`, `.dev`, `.app`, `.io` and `.sh` were unregistered that day. Still open:
+  - The UK IPO's own search could not be queried automatically; search it by hand for BERTHWARD, BERTWARD and BIRTHWARD (https://trademarks.ipo.gov.uk/ipo-tmtext).
+  - Decide about one similar mark: BERTWARE, class 9 software, registered in the UK and EU (EUTM 018149590). Similar letters, different sound; not legal advice.
+  - Register a domain.
 
 ## 2. Before a public release
 
-- Four releases are planned from one codebase: Unraid, TrueNAS, standalone Docker, and a Home Assistant app. Split what is Unraid-specific (the `host` helper's assumptions, the server scan, the allow list, the example tasks) into a platform profile.
+- Four releases are planned from one codebase: Unraid, TrueNAS, standalone Docker, and a Home Assistant app. Split what is Unraid-specific (the `host` helper's assumptions, the server scan, the allow list, the example tasks) into a platform profile. Packaging files already live per platform under `platforms/` (so far `platforms/unraid/template.xml`); the profiles and the other platforms' packaging go next to it.
 - Publishing. Done locally: the repository is named `berthward`, on branch `main`, and starts with a single first commit, so there is no development history or earlier project name to clean up. The README, template and image label already point at `github.com/thecode/berthward` and `ghcr.io/thecode/berthward`, neither of which exists yet. Still to do, in order:
   - A last scan of the files for private text.
   - Create the GitHub repository and push.

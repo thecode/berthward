@@ -49,7 +49,7 @@ Berthward is an independent project based on claude-unraid-manager by mygrexit. 
 </Changes>
   <Category>Tools:System</Category>
   <WebUI>http://[IP]:[PORT:7682]/</WebUI>
-  <TemplateURL>https://raw.githubusercontent.com/thecode/berthward/main/unraid-template.xml</TemplateURL>
+  <TemplateURL>https://raw.githubusercontent.com/thecode/berthward/main/platforms/unraid/template.xml</TemplateURL>
   <Icon>https://raw.githubusercontent.com/thecode/berthward/main/icon.png</Icon>
   <ExtraParams>--hostname berthward</ExtraParams>
   <DonateText/>

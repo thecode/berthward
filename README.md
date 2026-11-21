@@ -450,7 +450,7 @@ cd "$APPDATA" && git clone https://github.com/thecode/berthward.git berthward-sr
 docker build -t berthward:local berthward-src
 # Point the template at the local image:
 sed 's#<Repository>.*</Repository>#<Repository>berthward:local</Repository>#' \
-  berthward-src/unraid-template.xml \
+  berthward-src/platforms/unraid/template.xml \
   > /boot/config/plugins/dockerMan/templates-user/my-berthward.xml
 ```
 
