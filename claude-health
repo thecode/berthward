@@ -1,0 +1,24 @@
+#!/bin/bash
+# claude-health — container health check.
+#
+# The entrypoint lists in /run/berthward/expect what should be running:
+#   session  the interactive Claude session (tmux)
+#   bridge   the Discord bridge
+#   web      the web terminal without Discord (password sign-in)
+# Healthy means every listed part is running, and at least one part is listed.
+# A bridge that stopped on a configuration error (wrong token) shows up here
+# as unhealthy.
+expect=/run/berthward/expect
+[ -f "$expect" ] || exit 0   # the entrypoint has not got that far yet
+[ -s "$expect" ] || exit 1   # nothing is meant to run: see the container log
+
+if grep -qx session "$expect"; then
+  tmux has-session 2>/dev/null && pgrep -x claude >/dev/null || exit 1
+fi
+if grep -qx bridge "$expect"; then
+  pgrep -f 'bridge/bridge\.ts' >/dev/null || exit 1
+fi
+if grep -qx web "$expect"; then
+  pgrep -f 'bridge/web-only\.ts' >/dev/null || exit 1
+fi
+exit 0

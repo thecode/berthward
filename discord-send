@@ -1,0 +1,40 @@
+#!/bin/bash
+# discord-send <file> [caption] — send a file to the Discord chat that is
+# being answered.
+#
+# For Claude, during a conversation that came in through the Discord bridge:
+# the bridge sets BRIDGE_URL and BRIDGE_CHAT for that run. The bridge decides
+# whether the file goes out: it must be a regular file inside the working
+# folder and not larger than Discord accepts. Anything else is refused with a
+# reason, which this command prints.
+set -u
+
+if [ $# -lt 1 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+  echo "usage: discord-send <file> [caption]" >&2
+  exit 64
+fi
+if [ -z "${BRIDGE_URL:-}" ] || [ -z "${BRIDGE_CHAT:-}" ]; then
+  echo "discord-send only works while answering a message from Discord." >&2
+  exit 2
+fi
+
+if ! file=$(realpath -e -- "$1" 2>/dev/null); then
+  echo "not sent: no such file: $1" >&2
+  exit 1
+fi
+shift
+caption="$*"
+
+if ! response=$(jq -n --arg chat "$BRIDGE_CHAT" --arg path "$file" --arg caption "$caption" \
+      '{chat: $chat, path: $path, caption: $caption}' \
+    | curl -sS -m 120 -H 'content-type: application/json' --data-binary @- "$BRIDGE_URL/send-file" 2>&1); then
+  echo "not sent: the bridge could not be reached ($response)" >&2
+  exit 1
+fi
+
+if [ "$(jq -r '.ok // false' <<<"$response" 2>/dev/null)" = true ]; then
+  echo "sent $(basename "$file") to Discord"
+else
+  echo "not sent: $(jq -r '.error // "unexpected answer from the bridge"' <<<"$response" 2>/dev/null || echo "$response")" >&2
+  exit 1
+fi

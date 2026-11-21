@@ -1,0 +1,9 @@
+CLAUDE.md
+
+# local, never published
+.env
+.env.*
+*.local
+*.local.*
+site/
+node_modules/

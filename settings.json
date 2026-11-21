@@ -1,0 +1,91 @@
+{
+  "permissions": {
+    "defaultMode": "default",
+    "disableBypassPermissionsMode": "disable",
+    "allow": [
+      "Bash(docker ps *)",
+      "Bash(docker logs *)",
+      "Bash(logs *)",
+      "Bash(inspect *)",
+      "Bash(docker images *)",
+      "Bash(docker stats --no-stream *)",
+      "Bash(docker top *)",
+      "Bash(docker version *)",
+      "Bash(docker info *)",
+      "Bash(docker network ls *)",
+      "Bash(docker volume ls *)",
+      "Bash(host zpool status *)",
+      "Bash(host zpool list *)",
+      "Bash(host zfs list *)",
+      "Bash(host zfs get *)",
+      "Bash(host btrfs filesystem show *)",
+      "Bash(host btrfs filesystem usage *)",
+      "Bash(host btrfs scrub status *)",
+      "Bash(host mdcmd status *)",
+      "Bash(host virsh list *)",
+      "Bash(host df *)",
+      "Bash(host free *)",
+      "Bash(host uptime *)",
+      "Bash(host ip addr)",
+      "Bash(host ip addr show)",
+      "Bash(host ip -br addr)",
+      "Bash(host ip -br addr show)",
+      "Bash(host ip route)",
+      "Bash(host ip -br link)",
+      "Bash(host smartctl --scan)",
+      "Bash(host smartctl -a *)",
+      "Bash(host smartctl -A *)",
+      "Bash(host smartctl -H *)",
+      "Bash(host smartctl -i *)",
+      "Bash(host lsblk *)",
+      "Bash(host virsh dominfo *)",
+      "Bash(host virsh domstate *)",
+      "Bash(host sensors *)",
+      "Bash(host upsc *)",
+      "Bash(host apcaccess *)",
+      "Edit(//workspace/**)",
+      "Read(//host/boot/**)",
+      "Bash(discord-send *)"
+    ],
+    "deny": [
+      "Bash(rm -rf /)",
+      "Bash(rm -rf /*)",
+      "Bash(mkfs*)",
+      "Bash(dd *of=/dev/*)",
+      "Bash(wipefs*)",
+      "Bash(sgdisk --zap*)",
+      "Bash(shred *)",
+      "Read(//host/boot/config/shadow)",
+      "Read(//host/boot/config/smbpasswd)",
+      "Read(//host/boot/config/secrets.tdb)",
+      "Read(//host/boot/config/ssh/**)",
+      "Read(//host/boot/config/ssl/**)",
+      "Read(//host/boot/config/wireguard/**)",
+      "Read(//host/boot/config/plugins/dockerMan/.token_seed)"
+    ],
+    "ask": [
+      "Bash(docker inspect *)",
+      "Read(//host/boot/config/plugins/dockerMan/templates-user/**)",
+      "Read(//host/boot/config/rclone/**)",
+      "Read(//host/boot/config/plugins/dynamix.my.servers/**)",
+      "Read(//host/boot/config/plugins/dynamix/dynamix.cfg)",
+      "Read(//host/boot/config/plugins/dynamix/notifications/**)",
+      "Read(//host/boot/config/plugins/unassigned.devices/*.cfg)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/local/bin/claude-guard",
+            "timeout": 10,
+            "onFailure": "block"
+          }
+        ]
+      }
+    ]
+  }
+}

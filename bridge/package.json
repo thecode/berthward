@@ -1,0 +1,16 @@
+{
+  "name": "berthward-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "start": "bun bridge.ts",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
+    "discord.js": "^14.16.0"
+  }
+}

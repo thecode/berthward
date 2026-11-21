@@ -1,0 +1,41 @@
+#!/bin/bash
+# claude-bridge [web-only] — keeps the Discord bridge running, or with the
+# "web-only" argument the web terminal without Discord.
+#
+# Started in the background by the entrypoint when a Discord bot token is set
+# (or, for web-only, when the web terminal is on without one).
+# Restarts the bridge if it exits (network loss, crash), with a growing pause.
+# A configuration error (exit 64: no token, no or bad allowlist) is not
+# retried. Output goes to the container log.
+set -u
+
+NAME=bridge
+[ "${1:-}" != web-only ] || NAME=web-only
+BRIDGE=/usr/local/lib/berthward/bridge/$NAME.ts
+pause=5
+
+child=
+stop() {
+  [ -z "$child" ] || kill -TERM "$child" 2>/dev/null
+  exit 0
+}
+trap stop TERM INT
+
+while true; do
+  started=$(date +%s)
+  bun "$BRIDGE" &
+  child=$!
+  wait "$child"
+  status=$?
+  child=
+  if [ "$status" -eq 64 ]; then
+    echo "$NAME: configuration error, not restarting. Fix the fields in the template and apply."
+    exit 64
+  fi
+  # A run that lasted a while resets the pause.
+  [ $(( $(date +%s) - started )) -lt 60 ] || pause=5
+  echo "$NAME: exited (status $status), restarting in ${pause}s"
+  sleep "$pause" &
+  wait $!
+  [ "$pause" -ge 300 ] || pause=$((pause * 2))
+done

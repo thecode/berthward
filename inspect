@@ -1,0 +1,41 @@
+#!/bin/bash
+# inspect — `docker inspect` without the values of environment variables.
+#
+#   inspect <container|image> [more names]
+#
+# A container's environment is where its passwords, tokens and API keys
+# live, and plain `docker inspect` prints all of it. This prints the same
+# JSON with every environment value replaced by "<hidden>"; the names stay,
+# and so do the values of a few variables that are never secret and often
+# needed (time zone, user and group ids, PATH). For a hidden value, plain
+# `docker inspect` is still there, and asks the user first.
+set -uo pipefail
+
+if [ $# -eq 0 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+  echo "usage: inspect <container|image> [more names]" >&2
+  exit 64
+fi
+for a in "$@"; do
+  case "$a" in
+    -*) echo "inspect: options are not supported (got $a); names only." >&2; exit 64 ;;
+  esac
+done
+
+raw=$(docker inspect -- "$@" 2>&1)
+status=$?
+if [ $status -ne 0 ]; then
+  printf '%s\n' "$raw" >&2
+  exit $status
+fi
+
+printf '%s\n' "$raw" | jq '
+  def shown: ["TZ", "PUID", "PGID", "UMASK", "PATH", "LANG", "LC_ALL", "HOME"];
+  def hide:
+    if type == "string" and test("=") then
+      (split("=")[0]) as $name
+      | if (shown | index($name)) != null then . else $name + "=<hidden>" end
+    else . end;
+  walk(
+    if type == "object" and (.Env? | type) == "array" then .Env |= map(hide) else . end
+  )
+'
