@@ -1,6 +1,12 @@
 #!/bin/bash
 set -euo pipefail
 
+# Switches that exist for the tests (they redirect the bridge's calls to
+# Discord, its folders, and what the scan and the guard read). They have no
+# place in a running container: whatever the container was started with, they
+# end here, before anything reads them.
+unset BRIDGE_DISCORD_API BRIDGE_STATE_DIR BRIDGE_WORKDIR BRIDGE_TASKS_DIR MOUNTINFO CLAUDE_MD_DEST CLAUDE_MD_SHARE DOCKER_SOCK USERSCRIPTS_SCHEDULE
+
 SESSION="${TMUX_SESSION:-main}"
 RC_NAME="${REMOTE_CONTROL_NAME:-$(hostname)}"
 CONTINUE="${CONTINUE:-true}"
@@ -23,7 +29,7 @@ ALLOW_VERSIONS=/usr/local/share/berthward/allow-versions.json
 # keeps its stamp.
 OLD_STAMP=/root/.claude/.claude-unraid-manager-settings-version
 if [ -f "$OLD_STAMP" ] && [ ! -f "$SETTINGS_STAMP" ]; then mv "$OLD_STAMP" "$SETTINGS_STAMP"; fi
-SETTINGS_VERSION=6   # bump whenever settings.json gains keys existing installs should receive
+SETTINGS_VERSION=7   # bump whenever settings.json gains keys existing installs should receive
 mkdir -p /root/.claude
 stamp=$(cat "$SETTINGS_STAMP" 2>/dev/null || true)
 case "$stamp" in ''|*[!0-9]*) stamp=0 ;; esac
@@ -97,8 +103,10 @@ fi
 # With a bot token and an allowlist, the bridge runs in the background next to
 # the interactive session: messages from Discord start headless Claude runs,
 # and their permission prompts are answered with buttons on Discord. The token
-# is dropped from the environment afterwards, so neither the interactive
-# session nor its shell commands carry it.
+# is dropped from the environment afterwards, so the interactive session and
+# the commands it runs do not inherit it. (It stays readable for root inside
+# the container, in the template on the flash drive and in /proc of the first
+# processes; reading either asks the user first.)
 DISCORD=off
 BRIDGE_PID=
 WEB_PID=
@@ -117,7 +125,7 @@ unset DISCORD_BOT_TOKEN
 # ── Interactive session (optional) ───────────────────────────────────────────
 # INTERACTIVE_SESSION=false runs the Discord bridge only: no tmux, no Remote
 # Control, no web terminal. Log in from Discord with /login in that mode.
-INTERACTIVE="${INTERACTIVE_SESSION:-true}"
+INTERACTIVE=$(printf '%s' "${INTERACTIVE_SESSION:-true}" | tr '[:upper:]' '[:lower:]')
 case "$INTERACTIVE" in false|0|no|off) INTERACTIVE=false ;; *) INTERACTIVE=true ;; esac
 if [ "$INTERACTIVE" = false ]; then
   REMOTE_CONTROL=false
@@ -130,7 +138,7 @@ fi
 # With the bridge, the web terminal is part of it and sign-ins are approved on
 # Discord. Without it, a long password is the only way in (see web-only.ts).
 WEB=off
-case "${WEB_TERMINAL:-false}" in true|1|yes)
+case "$(printf '%s' "${WEB_TERMINAL:-false}" | tr '[:upper:]' '[:lower:]')" in true|1|yes)
   if [ "$DISCORD" = on ]; then
     WEB=bridge
   elif [ "$INTERACTIVE" = false ]; then
@@ -168,7 +176,9 @@ fi
 
 echo "Berthward is running."
 if [ "$INTERACTIVE" = true ]; then
-  echo "  Attach: docker exec -it \$(hostname) tmux attach -t $SESSION"
+  # The container's name as the host knows it (Unraid passes it in); the
+  # hostname is the fallback and is often the same.
+  echo "  Attach: docker exec -it ${HOST_CONTAINERNAME:-$(hostname)} tmux attach -t $SESSION"
 else
   echo "  Session: off (Discord bridge only)"
 fi

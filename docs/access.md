@@ -20,7 +20,7 @@ Discord has its own conversation. The web terminal and the Claude app show one s
 ## Files over Discord
 
 - **Sending Claude a file:** attach it to your message (a screenshot, a log, a config file). It is saved in Claude's own folder under `/workspace/inbox/`, and Claude is told where. Up to 10 files per message, 25 MB each; inbox files are deleted after 7 days. Saving is all that happens: nothing opens or runs the file. If you ask Claude to run a script you sent, that is a command like any other and you get the Allow / Deny request first.
-- **Getting a file from Claude:** ask for it ("send me the last 500 lines of the syslog as a file"). Claude can only send regular files from inside `/workspace`, up to 8 MB (Discord's limit for a bot in a server without boosts). A file from anywhere else has to be copied there first, which needs your approval.
+- **Getting a file from Claude:** ask for it ("send me the last 500 lines of the syslog as a file"). Claude can only send regular files from inside `/workspace`, up to 8 MB (Discord's limit for a bot in a server without boosts). A file from anywhere else has to be copied there first. For most places that needs your approval; ordinary flash drive files are free for Claude to read, so those can be copied and sent without a request.
 - A file you forward from someone else may contain text written to mislead an AI. Claude is told to treat file contents as material, not instructions, and anything risky still asks you first.
 
 The limits can be changed with the container variables `BRIDGE_ATTACH_MAX_MB`, `BRIDGE_SEND_MAX_MB` and `BRIDGE_INBOX_DAYS`.
@@ -47,7 +47,7 @@ Turn it on with **Web Terminal** = `true` and set **Web Terminal Port** (for exa
 
 **Web Terminal Stay Signed In (hours)**:
 
-- `0`: never stay signed in. The sign-in ends about two minutes after the page is closed, and each visit needs a new sign-in.
+- `0`: never stay signed in. The sign-in ends about two minutes after the page is closed, and each visit needs a new sign-in. One sitting lasts at most 24 hours.
 - any other number: hours, at most 168 (one week). The default is 12.
 
 A container restart or update signs every browser out. **Sign out** on the page ends that sign-in everywhere it is open.

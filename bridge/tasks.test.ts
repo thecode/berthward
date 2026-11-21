@@ -3,7 +3,7 @@
 // records what would be posted and can be told to fail, and the tasks are
 // small shell scripts in a temporary folder.
 import { afterEach, describe, expect, test } from 'bun:test'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Tasks } from './tasks'
@@ -135,6 +135,33 @@ describe('approval', () => {
   })
 })
 
+describe('what the approval request shows', () => {
+  test('the settings, and a long script attached in full', async () => {
+    const t = setup()
+    const long = `# ${'x'.repeat(3000)}
+echo the-last-line
+`
+    t.write('disk', '0 * * * *', { script: long })
+    t.tasks.tick(TEN)
+    await t.until(() => t.posts.length === 1)
+    const ask = t.posts[0]
+    expect(ask.text).toContain('`task.json`: `{"kind":"script","schedule":"0 * * * *","enabled":true}`')
+    expect(ask.text).toContain('(cut: the complete check.sh is attached)')
+    expect(ask.text).not.toContain('the-last-line')
+    expect(ask.extra.files.length).toBe(1)
+    expect(ask.extra.files[0].name).toBe('check.sh')
+    expect(ask.extra.files[0].attachment.toString('utf8')).toBe(long)
+  })
+
+  test('a short script is shown whole, with nothing attached', async () => {
+    const t = setup()
+    t.write('disk', '0 * * * *')
+    t.tasks.tick(TEN)
+    await t.until(() => t.posts.length === 1)
+    expect(t.posts[0].extra.files).toEqual([])
+  })
+})
+
 describe('the clock', () => {
   test('an approved task runs in its minute only', async () => {
     const t = setup()
@@ -236,6 +263,38 @@ describe('housekeeping', () => {
     await t.until(() => t.state().approved.disk === undefined)
     expect(t.state().runs.disk).toBeUndefined()
     expect(t.state().asked.disk).toBeUndefined()
+  })
+
+  test('a tasks folder that cannot be read forgets nothing', async () => {
+    const t = setup()
+    t.write('disk', '0 * * * *')
+    t.tasks.tick(TEN)
+    await t.until(() => t.posts.length === 1)
+    t.approve()
+    // A file where the folder should be: reading it fails, but not with "does not exist".
+    renameSync(t.tasksDir, t.tasksDir + '.away')
+    writeFileSync(t.tasksDir, 'not a folder')
+    t.tasks.tick(ELEVEN)
+    await Bun.sleep(150)
+    expect(t.state().approved.disk).toBeDefined()
+    rmSync(t.tasksDir)
+    renameSync(t.tasksDir + '.away', t.tasksDir)
+    t.result('disk', 'still watched', 1)
+    await t.tickAndRun('disk', NOON)
+    expect(t.posts.at(-1)!.text).toContain('still watched')
+  })
+
+  test('a broken task that is deleted is forgotten too', async () => {
+    const t = setup()
+    const d = t.write('disk', '0 * * * *')
+    writeFileSync(join(d, 'task.json'), '{ not json')
+    t.tasks.tick(TEN)
+    await t.until(() => t.posts.length === 1)
+    expect(t.tasks.list()).toContain('⚠️')
+    rmSync(d, { recursive: true })
+    t.tasks.tick(ELEVEN)
+    await Bun.sleep(100)
+    expect(t.tasks.list()).toContain('No tasks yet')
   })
 
   test('a broken task is reported once and keeps its approval', async () => {

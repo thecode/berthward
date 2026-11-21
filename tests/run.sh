@@ -79,7 +79,7 @@ write_scan() {
 ::VMS::win11:shut off|Home Assistant:running|
 ::PLUGINS::dynamix.system.temp,unassigned.devices,
 ::USERSCRIPTS::zfs-snapshot:ZFS Snapshot:Daily snapshots of tank/media|cleanup-tmp:cleanup-tmp:|lock dataset:Lock Dataset:|
-::NETWORK::eth0 UP 192.168.1.10/24,bond0 UP ,br0 UP 192.168.1.10/24,tunl0@NONE DOWN ,docker0 DOWN 172.17.0.1/16,br-79c60d7ee5a9 UP 172.18.0.1/16,virbr0 DOWN 192.168.122.1/24,veth1a2b3c UP fe80::1/64,vnet0 UNKNOWN fe80::2/64,shim-br0@br0 UP 192.168.1.10/24,tailscale1 UNKNOWN 100.110.244.19/32,
+::NETWORK::eth0 UP 192.168.1.10/24,bond0 UP ,br0 UP 192.168.1.10/24,tunl0@NONE DOWN ,docker0 DOWN 172.17.0.1/16,br-79c60d7ee5a9 UP 172.18.0.1/16,virbr0 DOWN 192.168.122.1/24,veth1a2b3c UP fe80::1/64,vnet0 UNKNOWN fe80::2/64,shim-br0@br0 UP 192.168.1.10/24,tailscale1 UNKNOWN 100.64.0.19/32,
 EOF
 }
 
@@ -163,7 +163,7 @@ expect_not_contains "$TMP/CLAUDE.md" "0 data disks"
 expect_contains "$TMP/CLAUDE.md" "- eth0 UP 192.168.1.10/24"
 expect_contains "$TMP/CLAUDE.md" "- bond0 UP"
 expect_contains "$TMP/CLAUDE.md" "- br0 UP 192.168.1.10/24"
-expect_contains "$TMP/CLAUDE.md" "- tailscale1 UNKNOWN 100.110.244.19/32"
+expect_contains "$TMP/CLAUDE.md" "- tailscale1 UNKNOWN 100.64.0.19/32"
 for junk in veth1a2b3c vnet0 shim-br0 tunl0 docker0 br-79c60d7ee5a9 virbr0; do
   expect_not_contains "$TMP/CLAUDE.md" "$junk"
 done
@@ -573,11 +573,11 @@ if PATH="$TMP/bin:$PATH" bash "$ROOT/logs" --since 1h >/dev/null 2>&1; then fail
 
 # ── tmux target syntax used by the entrypoint ────────────────────────────────
 # "=name" is an exact session match for has-session; send-keys needs "=name:"
-# (beta.3 shipped "=name" there and every container exited with
+# (an early version used "=name" there and every container exited with
 # "can't find pane"). Run the same calls against a scratch session.
 echo "tmux target syntax"
 if command -v tmux >/dev/null 2>&1; then
-  TS="cum-test-$$"
+  TS="bw-test-$$"
   tmux new-session -d -s "$TS" -c "$TMP"
   if tmux has-session -t "=$TS" 2>/dev/null; then pass "has-session -t =name"; else fail "has-session -t =name"; fi
   if tmux send-keys -t "=$TS:" "true" C-m 2>/dev/null; then pass "send-keys -t =name:"; else fail "send-keys -t =name:"; fi
@@ -611,6 +611,14 @@ done
 if jq -e '.permissions.ask | index("Read(//host/boot/config/plugins/dockerMan/templates-user/**)") != null' "$ROOT/settings.json" >/dev/null; then pass "reading saved templates asks"; else fail "no ask rule for templates"; fi
 if jq -e '.permissions.allow | index("Read(//host/boot/**)") != null' "$ROOT/settings.json" >/dev/null; then pass "the rest of the flash drive is free to read"; else fail "no allow rule for the flash drive"; fi
 
+# ── Test switches ────────────────────────────────────────────────────────────
+echo "test switches"
+unset_line=$(grep '^unset BRIDGE_DISCORD_API' "$ROOT/entrypoint.sh")
+for v in BRIDGE_DISCORD_API BRIDGE_STATE_DIR BRIDGE_WORKDIR BRIDGE_TASKS_DIR MOUNTINFO CLAUDE_MD_DEST CLAUDE_MD_SHARE DOCKER_SOCK USERSCRIPTS_SCHEDULE; do
+  case " $unset_line " in *" $v "*) pass "the start script drops $v" ;; *) fail "the start script does not drop $v" ;; esac
+done
+if grep -qE '^COPY bridge/ ' <(sed -n '/^FROM .* AS runtime/,/^FROM runtime AS test/p' "$ROOT/Dockerfile"); then fail "the runtime image copies the whole bridge folder, tests included"; else pass "the runtime image copies no bridge tests"; fi
+
 # ── Settings merge ───────────────────────────────────────────────────────────
 echo "settings merge"
 DEFAULTS="$ROOT/settings.json"
@@ -634,17 +642,17 @@ merge "$TMP/own-hook.json" > "$TMP/merged2.json"
 if has_guard "$TMP/merged2.json"; then pass "guard appended next to user hook"; else fail "guard missing with user hook"; fi
 if jq -e '[.hooks.PreToolUse[].hooks[].command] | index("/usr/local/bin/notify") != null' "$TMP/merged2.json" >/dev/null; then pass "user hook kept"; else fail "user hook lost"; fi
 
-# An install from beta.1/beta.2 has the guard but no defaultMode: the merge adds it.
-cat > "$TMP/beta2.json" <<'EOF'
+# An older install has the guard but no defaultMode: the merge adds it.
+cat > "$TMP/older.json" <<'EOF'
 { "permissions": { "allow": ["Bash(docker ps *)"], "disableBypassPermissionsMode": "disable" },
   "hooks": { "PreToolUse": [ { "matcher": "Bash", "hooks": [ { "type": "command", "command": "/usr/local/bin/claude-guard" } ] } ] } }
 EOF
-merge "$TMP/beta2.json" > "$TMP/merged4.json"
+merge "$TMP/older.json" > "$TMP/merged4.json"
 if jq -e '.permissions.defaultMode == "default"' "$TMP/merged4.json" >/dev/null; then pass "defaultMode added to older install"; else fail "defaultMode missing after merge"; fi
 if jq -e '.permissions.allow == ["Bash(docker ps *)"]' "$TMP/merged4.json" >/dev/null; then pass "user allow list left as is"; else fail "user allow list changed"; fi
 if jq -e '.permissions.ask | index("Bash(docker inspect *)") != null' "$TMP/merged4.json" >/dev/null; then pass "shipped ask entries added to an older install"; else fail "ask list not merged"; fi
 if jq -e '.permissions.deny | index("Read(//host/boot/config/shadow)") != null' "$TMP/merged4.json" >/dev/null; then pass "shipped read refusals added to an older install"; else fail "read refusals not merged"; fi
-missing=$(bash "$ROOT/claude-settings-merge" --missing-allow "$DEFAULTS" "$TMP/beta2.json")
+missing=$(bash "$ROOT/claude-settings-merge" --missing-allow "$DEFAULTS" "$TMP/older.json")
 if printf '%s\n' "$missing" | grep -qx 'Bash(logs \*)'; then pass "--missing-allow reports shipped entries the user lacks"; else fail "--missing-allow output wrong: $missing"; fi
 if [ "$(jq '[.hooks.PreToolUse[].hooks[].command] | map(select(. == "/usr/local/bin/claude-guard")) | length' "$TMP/merged4.json")" = 1 ]; then pass "guard not duplicated"; else fail "guard duplicated"; fi
 

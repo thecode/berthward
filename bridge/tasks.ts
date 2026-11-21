@@ -40,9 +40,14 @@ interface Task {
   name: string
   dir: string
   config: TaskConfig
+  /** task.json as written. */
+  json: string
   body: string
   hash: string
 }
+
+/** How much of a task's script or prompt fits in the approval request; a longer one is also attached in full. */
+const TASK_SHOWN = 1200
 
 interface TasksState {
   /** name → content hash the user approved. */
@@ -65,6 +70,8 @@ export class Tasks {
   private runningNow = new Set<string>()
   private promptChain: Promise<void> = Promise.resolve()
   private problems = new Map<string, string>()
+  /** The tasks folder could not be read on the last scan (not: it does not exist). */
+  private scanFailed = false
   private asking = new Set<string>()
 
   constructor(private host: TaskHost) {
@@ -95,8 +102,16 @@ export class Tasks {
         .filter(e => e.isDirectory())
         .map(e => e.name)
         .sort()
-    } catch {
+    } catch (e) {
+      // No folder means no tasks. Any other failure (a share that is briefly
+      // away) must not be mistaken for "every task was deleted".
+      this.scanFailed = (e as NodeJS.ErrnoException)?.code !== 'ENOENT'
       return out
+    }
+    this.scanFailed = false
+    // A problem is forgotten with its folder.
+    for (const name of [...this.problems.keys()]) {
+      if (!names.includes(name) || !existsSync(join(this.host.tasksDir, name, 'task.json'))) this.problems.delete(name)
     }
     for (const name of names) {
       const dir = join(this.host.tasksDir, name)
@@ -109,7 +124,7 @@ export class Tasks {
         if (!existsSync(join(dir, bodyFile))) throw new Error(`${bodyFile} is missing`)
         const body = readFileSync(join(dir, bodyFile), 'utf8')
         const hash = createHash('sha256').update(json).update('\0').update(body).digest('hex')
-        out.push({ name, dir, config, body, hash })
+        out.push({ name, dir, config, json, body, hash })
         this.problems.delete(name)
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
@@ -140,7 +155,16 @@ export class Tasks {
   private async askApprovalNow(t: Task): Promise<void> {
     const lang = t.config.kind === 'script' ? 'bash' : 'md'
     let body = t.body.replace(/```/g, '`\u200b``')
-    if (body.length > 1300) body = body.slice(0, 1300) + '\n… (cut; the full file is in the task folder)'
+    // Approve covers the whole file, so a long one is attached in full.
+    const bodyFile = t.config.kind === 'script' ? 'check.sh' : 'prompt.md'
+    const cut = t.body.length > TASK_SHOWN
+    if (cut) body = body.slice(0, TASK_SHOWN) + `\n… (cut: the complete ${bodyFile} is attached)`
+    const files = cut ? [{ attachment: Buffer.from(t.body, 'utf8'), name: bodyFile }] : []
+    let settings = t.json
+    try {
+      settings = JSON.stringify(JSON.parse(t.json))
+    } catch {}
+    settings = settings.replace(/`/g, "'").slice(0, 300)
     const changed = this.state.approved[t.name] !== undefined
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(`task:approve:${t.name}:${t.hash.slice(0, 16)}`).setLabel('Approve').setStyle(ButtonStyle.Success),
@@ -152,8 +176,9 @@ export class Tasks {
         (t.config.kind === 'script'
           ? ' (runs as root in the container, without further prompts)'
           : ' (Claude runs it read-only; each run uses your Claude plan)') +
+        `\n\`task.json\`: \`${settings}\`` +
         `\n\`\`\`${lang}\n${body}\n\`\`\``,
-      { components: [row] },
+      { components: [row], files },
     )
     // Not delivered (Discord unreachable): the next tick asks again.
     if (sent) {
@@ -197,6 +222,7 @@ export class Tasks {
   /** Called once a minute. */
   tick(now: Date): void {
     const tasks = this.scan()
+    if (this.scanFailed) return // try again in a minute; nothing is forgotten
     this.forget(new Set([...tasks.map(t => t.name), ...this.problems.keys()]))
     for (const t of tasks) {
       if (!t.config.enabled) continue
@@ -265,6 +291,8 @@ export class Tasks {
         '-p',
         '--output-format', 'json',
         '--permission-prompts', 'none',
+        // Read-only: the allow list would let it write in the workspace.
+        '--disallowedTools', 'Edit', 'Write', 'NotebookEdit',
         '--no-session-persistence',
         '--append-system-prompt', PROMPT_TASK_SYSTEM,
         ...(this.host.model ? ['--model', this.host.model] : []),

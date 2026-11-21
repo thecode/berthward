@@ -25,10 +25,10 @@ Assistant are planned.
 **Status: beta, not yet published.** The image and the Community
 Applications entry do not exist yet; until they do, build the image yourself
 (see [Building and Testing Locally](#building-and-testing-locally)).
-Berthward was developed and tried on two Unraid 7.4.1 servers that keep their
-data on ZFS pools. Not yet seen in action: arrays with data disks and parity,
-btrfs and XFS pools, systems without ZFS; the scanner has code paths for
-those that nobody has watched run. And it is an AI agent: the rules in `CLAUDE.md` shape what
+Berthward was developed and tried on two Unraid 7.4.1 servers with ZFS pools
+and a small XFS array. Not yet seen in action: larger arrays with parity,
+btrfs pools, systems without ZFS; the scanner has code paths for those that
+nobody has watched run. And it is an AI agent: the rules in `CLAUDE.md` shape what
 Claude does, they do not guarantee it. Expect rough edges and report them in
 the [issues](https://github.com/thecode/berthward/issues).
 
@@ -194,6 +194,10 @@ Every bind mount you add shows up in Claude's `CLAUDE.md` with its access mode a
   and similar. The full list is `permissions.allow` in `settings.json`.
 - Send you a file from `/workspace` over Discord.
 
+Taken together, the last three mean an ordinary flash drive file can reach
+you on Discord without a request: Claude reads it, saves a copy in its folder
+and sends it. The credential files below are the exception.
+
 Everything else asks first: in the terminal as a prompt, on Discord as Allow
 / Deny buttons. On Discord a request that is not answered within ten minutes
 counts as denied.
@@ -202,7 +206,7 @@ counts as denied.
 
 The flash drive is free for Claude to read, with two exceptions:
 
-- **Refused:** password hashes (`shadow`, `smbpasswd`, `secrets.tdb`) and the SSH, TLS and WireGuard key folders.
+- **Refused:** password hashes (`shadow`, `smbpasswd`, `secrets.tdb`), the SSH, TLS and WireGuard key folders, and dockerMan's token seed.
 - **Asks first:** saved container templates (they hold every container's passwords and tokens, this one's included), rclone settings, Unraid Connect settings, notification settings and Unassigned Devices share settings.
 
 For a container's settings Claude uses `inspect <container>`, which hides the values of environment variables; plain `docker inspect` asks first.
@@ -215,10 +219,10 @@ Three independent layers, in order of how much you should rely on them:
 
 1. **Permission prompts** — the shipped `settings.json` starts every session
    in Manual mode (`defaultMode: default`), so Claude Code asks before shell
-   commands and file writes. This matters because Claude Code itself now
-   starts in auto mode by default, where a classifier approves actions
-   instead of you; on a root-equivalent container that is your call, not a
-   default, so it is one Shift+Tab away rather than on. On Discord there is
+   commands and file writes. Claude Code also has an auto mode, where a
+   classifier approves actions instead of you; on a root-equivalent container
+   that is your call, not a default, so the shipped settings pin Manual mode
+   and auto mode is one Shift+Tab away rather than on. On Discord there is
    no auto mode: every request is a button for you.
    `--dangerously-skip-permissions` is disabled
    (`disableBypassPermissionsMode`).
@@ -295,6 +299,9 @@ What this image does about it:
   hide text) and framed as untrusted data; Claude is told to use it and to
   report, not follow, instructions it finds in logs or files.
 - Files sent over Discord are only saved. Nothing opens or runs them.
+- Claude's own rules file asks before it is changed. Claude writes freely in
+  its folder, but an edit to `/workspace/CLAUDE.md` needs your approval, so
+  text it read somewhere cannot quietly become a standing rule.
 
 What it cannot do: close the way out. With the Docker socket mounted, Claude
 can reach the network from the host through `host …`, outside any sandbox
@@ -353,7 +360,7 @@ printf '#!/bin/bash\nexec docker exec -it berthward bash\n' > /usr/local/bin/ber
 chmod +x /usr/local/bin/berthward
 ```
 
-The first block appends two lines to `/boot/config/go`, which Unraid runs at
+The first block appends three lines to `/boot/config/go`, which Unraid runs at
 every boot (everything outside `/boot` is rebuilt from RAM, so the command
 has to be recreated each time); the last two lines create it right now. If
 you named the container differently, change `berthward` in both places.
@@ -384,7 +391,7 @@ Every setting is a field in the template. Paths first, then variables.
 | Discord Allowed Users | `DISCORD_ALLOWED_USERS` | *(empty)* | Your Discord user ID; several comma-separated. Required with a token |
 | Discord Channels | `DISCORD_CHANNELS` | *(empty)* | Channel IDs the bot listens in. Empty = direct messages only |
 | Discord Require Mention | `DISCORD_REQUIRE_MENTION` | `false` | `true` = in channels, answer only when @mentioned |
-| Discord Alert Channel | `DISCORD_ALERT_CHANNEL` | *(empty)* | Where tasks and approval requests are posted. Empty = the first channel, or a direct message to the first user |
+| Discord Alert Channel | `DISCORD_ALERT_CHANNEL` | *(empty)* | Where task results and task approval requests are posted (permission requests for a command appear in the chat that asked). Empty = the first channel, or a direct message to the first user |
 | Discord Approval Timeout | `BRIDGE_APPROVAL_TIMEOUT` | `600` | Seconds a permission request waits before it counts as denied |
 | Discord Job Time Limit (minutes) | `BRIDGE_RUN_TIMEOUT` | `60` | Longest one Discord job may run. `0` = no limit |
 | Discord Model | `BRIDGE_MODEL` | *(empty)* | Model for Discord conversations. Empty = your Claude Code default |
@@ -400,11 +407,12 @@ Every setting is a field in the template. Paths first, then variables.
 | Host Helper Image | `HOST_HELPER_IMAGE` | `alpine:3.21` | Image behind `host`. Pulled on start |
 | Container App Data | `/appdata` | not mounted | Other containers' configs, read-only recommended |
 
-Three more variables have no template field; add them with *Add another
+A few more variables have no template field; add them with *Add another
 Variable* if you need them: `BRIDGE_ATTACH_MAX_MB` (largest file you can send
 Claude, default 25), `BRIDGE_SEND_MAX_MB` (largest file Claude can send you,
-default 8) and `BRIDGE_INBOX_DAYS` (how long received files are kept,
-default 7).
+default 8), `BRIDGE_INBOX_DAYS` (how long received files are kept, default 7)
+and `BRIDGE_TASK_MODEL` (model for prompt tasks; default is the Discord
+model).
 
 ### A note on appdata
 

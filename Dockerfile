@@ -25,12 +25,14 @@ RUN npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
 # No Node.js in the runtime image: Claude Code runs natively. MCP servers that
 # are started through `npx` therefore do not work inside this container; Bun is
 # present for the Discord bridge.
-FROM debian:bookworm-slim
+FROM debian:bookworm-slim AS runtime
 
 COPY --from=build /claude /usr/local/bin/claude
 COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
 COPY --from=bun /bridge/node_modules /usr/local/lib/berthward/bridge/node_modules
-COPY bridge/ /usr/local/lib/berthward/bridge/
+# The bridge's own files only. Its tests and their stand-ins for Discord and
+# Claude are added in the "test" stage below and are not in the published image.
+COPY bridge/bridge.ts bridge/lib.ts bridge/tasks.ts bridge/web.ts bridge/web-only.ts bridge/permission-mcp.ts bridge/package.json bridge/bun.lock /usr/local/lib/berthward/bridge/
 
 # Docker CLI only (Debian's docker.io would pull in dockerd, containerd, runc).
 COPY --from=docker:28-cli /usr/local/bin/docker /usr/local/bin/docker
@@ -69,8 +71,18 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
   CMD /usr/local/bin/claude-health
 
 LABEL org.opencontainers.image.source="https://github.com/thecode/berthward" \
-      org.opencontainers.image.description="Claude Code as an Unraid system manager" \
+      org.opencontainers.image.description="Claude Code as an administrator for your home server, with Discord approvals, monitoring tasks and a web terminal" \
       org.opencontainers.image.licenses="MIT"
 
 ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["/usr/local/bin/entrypoint.sh"]
+
+# ── test: the runtime image plus the bridge's tests ──────────────────────────
+# CI builds this stage (--target test) to run the tests with the image's own
+# Bun and dependencies. Nothing is published from it.
+FROM runtime AS test
+COPY bridge/ /usr/local/lib/berthward/bridge/
+
+# ── the published image ──────────────────────────────────────────────────────
+# Last, so a plain `docker build` produces it.
+FROM runtime

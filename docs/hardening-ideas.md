@@ -107,4 +107,4 @@ which today is the mount mode.
 ## 4. Always-on vs. on demand
 
 An always-on container with the socket is a standing root-equivalent target. Starting it only for a
-session (and stopping it afterwards, e.g. via the existing boot mode) removes the idle exposure.
+session and stopping it afterwards removes the idle exposure.

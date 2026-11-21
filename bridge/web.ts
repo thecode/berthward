@@ -94,9 +94,12 @@ export const PASSWORD_ONLY_MIN = 12
 const LOCKOUT_TRIES = 5
 const LOCKOUT_MS = 15 * 60_000
 
-const COOKIE = 'cas'
+const COOKIE = 'berthward'
+// Sign-in requests posted to Discord: a few per address, so that one address
+// cannot use up everyone's, and a cap on all of them together.
 const LOGIN_WINDOW_MS = 10 * 60_000
-const LOGIN_MAX_PER_WINDOW = 6
+const LOGIN_MAX_PER_ADDRESS = 4
+const LOGIN_MAX_PER_WINDOW = 12
 /** With "never stay signed in": how long a sign-in survives with no terminal open. */
 const NO_STAY_GRACE_MS = 2 * 60_000
 /** With "never stay signed in": the longest one sitting can last. */
@@ -223,7 +226,7 @@ export function startWeb(host: WebHost) {
   }
   const sessions = new Map<string, Session>() // cookie value → session
   const logins = new Map<string, PendingLogin>()
-  let recent: number[] = []
+  let recent: Array<{ at: number; ip: string }> = []
 
   const headers = (type: string, extra: Record<string, string> = {}) => ({
     'content-type': `${type}; charset=utf-8`,
@@ -381,9 +384,11 @@ ${
         // A limit on requests posted to Discord, whoever asks. It comes after
         // the password check: wrong passwords are limited per address above,
         // and must not be able to keep everyone else from signing in.
-        recent = recent.filter(t => now - t < LOGIN_WINDOW_MS)
-        if (recent.length >= LOGIN_MAX_PER_WINDOW) return json({ error: 'Too many sign-in attempts. Try again in a few minutes.' }, 429)
-        recent.push(now)
+        recent = recent.filter(r => now - r.at < LOGIN_WINDOW_MS)
+        if (recent.filter(r => r.ip === ip).length >= LOGIN_MAX_PER_ADDRESS || recent.length >= LOGIN_MAX_PER_WINDOW) {
+          return json({ error: 'Too many sign-in attempts. Try again in a few minutes.' }, 429)
+        }
+        recent.push({ at: now, ip })
         for (const l of logins.values()) {
           if (l.ip === ip && l.status === 'pending') return json({ error: 'A sign-in from this address is already waiting on Discord.' }, 429)
         }

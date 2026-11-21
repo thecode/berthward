@@ -8,9 +8,9 @@ the bottom of the server list → *Create My Own* → *For me and my friends*.
 
 ## Before you start
 
-- **One bot per server.** A bot token can be connected from one place at a
-  time. Two Berthward containers sharing a token would both answer. Create a
-  separate application for each server and name it after the server.
+- **One bot per server.** Two Berthward containers sharing a token would both
+  receive your messages and both answer. Create a separate application for
+  each server and name it after the server.
 - **Turn on two-factor authentication** for your Discord account (User
   Settings → My Account). Your account is what approves commands, tasks and
   web terminal sign-ins, so it deserves the same care as the server's root
@@ -39,11 +39,10 @@ permissions are granted in the next step.
 **OAuth2** page → **URL Generator**:
 
 1. Under *Scopes* tick **bot**.
-2. Under *Bot Permissions* tick these seven:
+2. Under *Bot Permissions* tick these six:
    - View Channels
    - Send Messages
    - Send Messages in Threads
-   - Create Public Threads
    - Read Message History
    - Attach Files
    - Add Reactions
@@ -63,6 +62,12 @@ Turn on **Developer Mode** (User Settings → Advanced). Then:
   tidy.
 
 Both are long numbers. They are not secrets, but the token is.
+
+The bot must be able to see the channel: in a private channel, add the bot
+to it (channel settings → Permissions). And remember that everyone who can
+read that channel reads Claude's answers and the permission requests, even
+though only you can answer them. A channel only you can see is the simple
+choice.
 
 ## 4. Fill in the template
 

@@ -159,6 +159,20 @@ describe('password only (no Discord)', () => {
     t.srv.stop(true)
   }, 15000)
 
+  test('sign-in requests from one address do not use up those of other addresses', async () => {
+    const t = serve({ trustProxy: true })
+    const from = (ip: string) => ({ 'x-forwarded-for': ip })
+    const statuses: number[] = []
+    for (let i = 0; i < 6; i++) {
+      const res = await t.login({}, from('203.0.113.9'))
+      statuses.push(res.status)
+      if (res.status === 200) await t.settle(((await res.json()) as { id: string }).id, from('203.0.113.9'))
+    }
+    expect(statuses).toEqual([200, 200, 200, 200, 429, 429])
+    expect((await t.login({}, from('198.51.100.7'))).status).toBe(200)
+    t.srv.stop(true)
+  })
+
   test('wrong passwords from one address do not keep another address out', async () => {
     const t = serve({ approve: undefined, password: 'a long enough password', trustProxy: true })
     const from = (ip: string) => ({ 'x-forwarded-for': ip })

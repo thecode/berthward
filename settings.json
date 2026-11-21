@@ -65,6 +65,7 @@
     ],
     "ask": [
       "Bash(docker inspect *)",
+      "Edit(//workspace/CLAUDE.md)",
       "Read(//host/boot/config/plugins/dockerMan/templates-user/**)",
       "Read(//host/boot/config/rclone/**)",
       "Read(//host/boot/config/plugins/dynamix.my.servers/**)",

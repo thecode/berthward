@@ -8,14 +8,25 @@ Open work for this project. Delete an item once it's done. An item we decide not
 - Publishing. Done locally: the repository is named `berthward`, on branch `main`, and starts with a single first commit, so there is no development history or earlier project name to clean up. The README, template and image label already point at `github.com/thecode/berthward` and `ghcr.io/thecode/berthward`, neither of which exists yet. Still to do, in order:
   - A last scan of the files for private text.
   - Create the GitHub repository and push.
-  - Publish the image (the workflow in `.github/workflows/` builds it for `ghcr.io`), and check that the `beta` tag the README and template name is the one it produces.
+  - Publish the image by pushing a version tag. The tag must contain `-beta` (for example `v0.1.0-beta.1`): only then does the workflow add the `beta` tag that the README and the template name. A plain `v0.1.0` would publish `0.1.0` and `latest` but no `beta`. A package first published from a private repository is private and has its own visibility switch.
   - Community Apps template and support thread.
+
+## 2. Noted in the pre-release review, not done
+
+None of these blocks a release. Each needs control of the container or its network, or is small.
+
+- The web terminal checks that a request's Origin matches its Host, but has no list of allowed host names, so a DNS-rebinding page passes that check. It still needs the owner's Allow or the password.
+- A web sign-in that nobody answers is shown in the browser as denied; the page has a separate "not answered in time" text that is never used.
+- `CLAUDE.md` is built from names on the host (containers, VMs, shares, User Script names and descriptions) without escaping. Whoever can set those writes into the file Claude treats as rules.
+- The bridge's local endpoints (127.0.0.1, random port) take requests from any process in the container.
+- The bot token and web password are removed from the environment Claude inherits, but stay readable for root in `/proc` of the container's first processes.
+- Base images in the Dockerfile are pinned by tag, not by digest.
 
 ## Settled, for the record
 
 - Tried on a real server and working: the web terminal behind a real reverse proxy, `/login` with the automatic session restart, a first login on an empty data folder (the session leaves its welcome screen by itself), Discord-only mode, and password-only web sign-in.
 
-- The name is Berthward. Checked on 2026-11-21 with no record of the word or its close spellings: the USPTO, EUIPO, TMview and WIPO Global Brand Database trademark registers (all classes, live and dead), Google Play, GitHub, Docker Hub, npm, PyPI, Steam, the App Store, the UK company register and a web search; the UK IPO register was searched by hand by the owner. One similar mark exists, BERTWARE (class 9 software, UK and EU, EUTM 018149590): the owner decided on 2026-11-21 to go ahead with Berthward. `berthward.com` is registered to the project's owner; `.net`, `.org`, `.dev`, `.app`, `.io` and `.sh` were unregistered that day. Nothing in the repo uses the domain yet.
+- The name is Berthward. It was checked against trademark registers, app stores, package registries and the web before it was chosen.
 
 ## Dropped
 

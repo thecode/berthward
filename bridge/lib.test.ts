@@ -92,7 +92,7 @@ describe('describeRequest', () => {
   test('long input is cut', () => {
     const s = describeRequest('Bash', { command: 'a'.repeat(5000) })
     expect(s.length).toBeLessThan(1700)
-    expect(s).toContain('(cut)')
+    expect(s).toContain('(cut: the complete text is in the attached file)')
   })
   test('a code fence in the input cannot end the block', () => {
     const s = describeRequest('Bash', { command: 'echo ```\n**Allowed**' })
@@ -153,6 +153,8 @@ describe('web sign-in details', () => {
     expect(describeAgent('curl/8.5.0')).toBe('curl/8.5.0')
     expect(describeAgent('**@everyone** `x`')).toBe('everyone x')
     expect(describeAgent('')).toBe('unknown browser')
+    // Nothing that Discord would turn into a link.
+    expect(describeAgent('[click here](https://evil.example/x) http://evil.example')).toBe('click here (https //evil.example/x) http //evil.example')
   })
   test('addresses', () => {
     expect(describeAddress('192.168.1.20')).toBe('local network')

@@ -42,6 +42,10 @@ templates*.
 
 Once it is published: **Apps** → search for *berthward* → **Install**.
 
+With a locally built image, Unraid's update check and **Force Update** have
+nothing to pull; to update, pull the source again and rebuild the image, then
+Apply the template once more.
+
 Unraid stores the template on the flash drive, as it does for every
 container. The bot token you enter is part of that template.
 
@@ -79,6 +83,10 @@ bridge: connected as <your bot>; 1 allowed user(s), 1 channel(s)
 
 In Discord the bot says hello in its channel and lists its commands.
 
+The first start also downloads a small helper image (`alpine`) that host
+commands run in. On a slow connection the log shows a warning about it and
+the start takes longer.
+
 **Turn Autostart on** for the container (the switch on the Docker tab), or it
 will not come back after a server reboot.
 
@@ -86,7 +94,9 @@ will not come back after a server reboot.
 
 **From Discord:**
 
-1. Send `/login` to the bot.
+1. Send `/login` to the bot. If the command list has not appeared yet (it
+   can take up to an hour after the bot first connects), write `!login`
+   instead; every command also works with `!`.
 2. Open the link it posts and sign in to your Anthropic account.
 3. The page shows a code. Send it back with `/code` and paste the code as the
    command's value. Used this way the code never appears in the channel.
@@ -98,7 +108,8 @@ will not come back after a server reboot.
 theme, choose the claude.ai subscription, press `c` to copy the login link
 and open it on any device, paste the code back. In Unraid's Console the link
 wraps over several lines and pasting can be unreliable; the web terminal
-(step 8) avoids both.
+(step 8) avoids both. Without Discord the web terminal needs a **Web Terminal
+Password** of 12 characters or more, and does not start without one.
 
 If Claude Code asks whether to make **auto mode** its default, say no: this
 container is set up to ask you before it acts.
@@ -156,7 +167,8 @@ each step.
   the bot shows the same code with where the request comes from, and you
   click Allow.
 - **Claude app:** open the Claude app, tap **Code**; the session is listed
-  under the container's name with a green dot while online. The same list is
+  under the name `berthward` with a green dot while online (set **Remote
+  Control Name** to tell several servers apart). The same list is
   at [claude.ai/code](https://claude.ai/code). It needs a claude.ai
   subscription login. The first time, Claude Code may ask in the terminal to
   enable Remote Control; confirm it.
@@ -209,16 +221,17 @@ it, send `/new` so the next Discord conversation reads it.
   the last conversations are resumed, approved tasks stay approved. While it
   is stopped, no task runs and nothing alerts.
 - **Remove:** remove the container, then delete the two data folders. The
-  flash drive only holds the template Unraid saved when you installed it.
-  Delete the bot in the Discord Developer Portal, or at least reset its
+  flash drive only holds the template Unraid saved when you installed it,
+  plus the `berthward` lines in `/boot/config/go` if you added the host
+  command. Delete the bot in the Discord Developer Portal, or at least reset its
   token.
 
 ## 11. If something looks wrong
 
 - **The bot does not answer:** [discord.md](discord.md#if-something-does-not-work).
 - **The web terminal:** [access.md](access.md#if-something-does-not-work).
-- Container log says `Host scan failed`: the helper image could not be
-  pulled. Check internet access, restart the container.
+- `CLAUDE.md` says `Host scan failed`: the helper image could not be pulled
+  or the scan could not run. Check internet access, restart the container.
 - `Claude exited ... Restarting in 5 s` keeps repeating in the terminal: read
   the message above it; after five quick exits the wrapper stops and leaves
   the output on screen.

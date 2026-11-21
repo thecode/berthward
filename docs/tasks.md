@@ -9,8 +9,9 @@ The usual way to get one is to ask for it:
 > tell me if not.
 
 Claude writes the task into its own folder and tells you what it checks. A
-minute later the bot shows you the task's exact content with **Approve** and
-**Reject** buttons. Nothing runs before you approve.
+minute later the bot shows you the task's settings and its script or prompt
+with **Approve** and **Reject** buttons. A long script is cut in the message
+and attached in full. Nothing runs before you approve.
 
 ## Two kinds
 
@@ -73,6 +74,11 @@ A script runs inside the container as root, with `bash check.sh`. Use
 nothing when all is well.
 
 ## Approval
+
+Approval covers `task.json` and the task's one script or prompt, nothing
+else. A script that runs or reads another file is not protected against that
+file changing, so keep a check in the one file, and be wary of a script that
+calls out to others.
 
 A task is approved by its content. Change one character of `task.json`,
 `check.sh` or `prompt.md` and the task stops running until you approve the

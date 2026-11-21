@@ -85,18 +85,22 @@ export function chunk(text: string, limit = 1900): string[] {
   return out
 }
 
-/** What to show the user when Claude asks for permission. */
-export function describeRequest(toolName: string, input: unknown, max = 1500): string {
-  let body: string
+/** How much of a request fits in the message; a longer one is also attached in full. */
+export const REQUEST_SHOWN = 1500
+
+/** The complete text of what Claude asks permission for. */
+export function requestBody(toolName: string, input: unknown): string {
   const i = (input ?? {}) as Record<string, unknown>
-  if (toolName === 'Bash' && typeof i.command === 'string') {
-    body = i.command
-  } else if (typeof i.file_path === 'string' && Object.keys(i).length === 1) {
-    body = i.file_path
-  } else {
-    body = JSON.stringify(input, null, 2) ?? ''
-  }
-  if (body.length > max) body = body.slice(0, max) + '\n… (cut)'
+  if (toolName === 'Bash' && typeof i.command === 'string') return i.command
+  if (typeof i.file_path === 'string' && Object.keys(i).length === 1) return i.file_path
+  return JSON.stringify(input, null, 2) ?? ''
+}
+
+/** What to show the user when Claude asks for permission. */
+export function describeRequest(toolName: string, input: unknown, max = REQUEST_SHOWN): string {
+  let body = requestBody(toolName, input)
+  // Allow approves the whole request, so the user must be able to read all of it.
+  if (body.length > max) body = body.slice(0, max) + '\n… (cut: the complete text is in the attached file)'
   // A ``` inside the body would end the code block early.
   body = body.replace(/```/g, '`\u200b``')
   return `🔐 **Permission needed: ${toolName}**\n\`\`\`\n${body}\n\`\`\``
@@ -206,7 +210,9 @@ export function describeAgent(ua: string): string {
     const m = re.exec(ua)
     if (m) return `${name} ${m[1]}${os ? ` on ${os}` : ''}`
   }
-  const raw = ua.replace(/[`*_~|<>@\s]+/g, ' ').trim().slice(0, 100)
+  // Whoever can reach the port chooses this text and it is shown on Discord:
+  // keep only what cannot form a link, a mention or formatting.
+  const raw = ua.replace(/[^A-Za-z0-9 .;/(),+-]+/g, ' ').replace(/ +/g, ' ').trim().slice(0, 100)
   return raw === '' ? 'unknown browser' : raw
 }
 

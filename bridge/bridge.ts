@@ -42,6 +42,8 @@ import {
   accepts,
   chunk,
   describeRequest,
+  requestBody,
+  REQUEST_SHOWN,
   formatSize,
   megabytes,
   minutes,
@@ -58,7 +60,9 @@ const TOKEN = process.env.DISCORD_BOT_TOKEN
 const STATE_DIR = process.env.BRIDGE_STATE_DIR ?? join(process.env.HOME ?? '/root', '.claude', 'bridge')
 const STATE_FILE = join(STATE_DIR, 'state.json')
 const WORKDIR = process.env.BRIDGE_WORKDIR ?? '/workspace'
-const APPROVAL_TIMEOUT_MS = Number(process.env.BRIDGE_APPROVAL_TIMEOUT ?? 600) * 1000
+// An empty or unreadable value means the default, not "deny at once".
+const approvalSeconds = Number((process.env.BRIDGE_APPROVAL_TIMEOUT ?? '').trim() || 600)
+const APPROVAL_TIMEOUT_MS = (Number.isFinite(approvalSeconds) && approvalSeconds > 0 ? approvalSeconds : 600) * 1000
 const MODEL = process.env.BRIDGE_MODEL ?? ''
 // The longest one chat job may run before it is stopped; 0 = no limit.
 const RUN_LIMIT_MS = minutes(process.env.BRIDGE_RUN_TIMEOUT, 60)
@@ -367,7 +371,10 @@ async function requestApproval(chat: string, toolName: string, input: unknown): 
     ),
   }
   pending.set(id, p)
-  p.message = await post(chat, summary, { components: [row] })
+  // A request too long to show is attached in full: Allow approves all of it.
+  const full = requestBody(toolName, input)
+  const files = full.length > REQUEST_SHOWN ? [{ attachment: Buffer.from(full, 'utf8'), name: 'request.txt' }] : []
+  p.message = await post(chat, summary, { components: [row], files })
   if (!p.message) {
     settle(id, { behavior: 'deny', message: 'The permission request could not be shown on Discord.' }, '')
   }
@@ -652,6 +659,13 @@ async function runClaude(job: Job, fresh: boolean): Promise<boolean> {
   running = null
   denyPendingFor(job.chat, 'The run ended before this was answered.')
 
+  // A conversation that was cut short on its first message still exists:
+  // keep it, so "ask again in smaller steps" continues where it stopped.
+  if ((stopped || timedOut) && !existing) {
+    state.sessions[job.chat] = sessionId
+    state.prompts = { ...state.prompts, [job.chat]: PROMPT_VERSION }
+    saveState()
+  }
   if (stopped) {
     await post(job.chat, '🛑 Stopped.')
     return false
@@ -680,7 +694,7 @@ async function runClaude(job: Job, fresh: boolean): Promise<boolean> {
     return true
   }
   log(`claude exited ${code}: ${err.slice(-500)}`)
-  if (/not logged in|\/login/i.test(err)) {
+  if (/not logged in|please run \/login/i.test(err)) {
     await post(
       job.chat,
       '⚠️ Claude is not logged in on this server (or the login expired). Send `/login` here to sign in, then send your message again.',
@@ -691,17 +705,25 @@ async function runClaude(job: Job, fresh: boolean): Promise<boolean> {
   return false
 }
 
+// One job at a time. `running` is cleared before a run's last messages are
+// posted, so it cannot be what keeps a second loop from starting.
+let draining = false
 async function drain(): Promise<void> {
-  if (running) return
-  let job: Job | undefined
-  while ((job = queue.shift())) {
-    try {
-      if (await runClaude(job, false)) await runClaude(job, true)
-    } catch (e) {
-      running = null
-      log(`run failed: ${e instanceof Error ? e.stack : e}`)
-      await post(job.chat, '⚠️ The bridge hit an error running Claude. See the container log.')
+  if (draining) return
+  draining = true
+  try {
+    let job: Job | undefined
+    while ((job = queue.shift())) {
+      try {
+        if (await runClaude(job, false)) await runClaude(job, true)
+      } catch (e) {
+        running = null
+        log(`run failed: ${e instanceof Error ? e.stack : e}`)
+        await post(job.chat, '⚠️ The bridge hit an error running Claude. See the container log.')
+      }
     }
+  } finally {
+    draining = false
   }
 }
 
@@ -755,7 +777,7 @@ const COMMANDS: Array<{ name: string; usage?: string; description: string; optio
 const HELP = [
   'Write here to talk to Claude on this server. Messages sent while it works are queued.',
   // Without an interactive session there is nothing to confuse it with.
-  ...(/^(false|0|no|off)$/.test(process.env.INTERACTIVE_SESSION ?? '')
+  ...(/^(false|0|no|off)$/i.test(process.env.INTERACTIVE_SESSION ?? '')
     ? []
     : [
         'Discord has its own conversation. The terminal, web terminal and Claude app share a different one, ' +
@@ -877,10 +899,8 @@ async function onMessage(m: Message): Promise<void> {
   // would read it as one of its own commands and refuse it.
   const cmd = /^([!/])([a-z][a-z0-9:_-]*)(?:\s+(.*))?$/is.exec(text)
   if (cmd) {
-    let name = cmd[2].toLowerCase()
-    let arg = (cmd[3] ?? '').trim()
-    // The older spelling "!session restart" stays valid.
-    if (name === 'session' && arg.toLowerCase() === 'restart') [name, arg] = ['restart-session', '']
+    const name = cmd[2].toLowerCase()
+    const arg = (cmd[3] ?? '').trim()
     const handled = await runCommand(name, arg, {
       chat,
       reply: async t => void (await post(chat, t)),
@@ -1017,7 +1037,7 @@ client.once(Events.ClientReady, c => {
   const wantsWeb = /^(true|1|yes)$/i.test(process.env.WEB_TERMINAL ?? '')
   // Same words as entrypoint.sh: with the interactive session off there is
   // nothing for the web terminal to show.
-  if (wantsWeb && /^(false|0|no|off)$/.test(process.env.INTERACTIVE_SESSION ?? '')) {
+  if (wantsWeb && /^(false|0|no|off)$/i.test(process.env.INTERACTIVE_SESSION ?? '')) {
     log('web: not started, the interactive session is off')
   } else if (wantsWeb) {
     try {

@@ -235,7 +235,6 @@ csv()   { get "$1" | sed 's/,$//; s/,/, /g'; }
         echo ""
       fi
 
-      # ── Network ────────────────────────────────────────────────────────────
       # ── User Scripts ───────────────────────────────────────────────────────
       USERSCRIPTS=$(lines USERSCRIPTS)
       if [ -n "$USERSCRIPTS" ]; then

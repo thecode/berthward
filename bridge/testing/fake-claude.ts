@@ -104,7 +104,7 @@ if (said.includes('send me')) {
   const res = await fetch(`${cfg.BRIDGE_URL}/approve`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ chat: cfg.BRIDGE_CHAT, tool_name: 'Bash', input: { command: 'touch /tmp/needs-permission' } }),
+    body: JSON.stringify({ chat: cfg.BRIDGE_CHAT, tool_name: 'Bash', input: { command: said.includes('long command') ? `echo ${'x'.repeat(3000)} && touch /tmp/end-marker` : 'touch /tmp/needs-permission' } }),
   })
   const { id } = (await res.json()) as { id: string }
   let decision: any

@@ -249,6 +249,18 @@ describe('permission requests', () => {
     expect(request.content).toContain('Denied by Owner Nick')
   })
 
+  test('a request too long to show is attached in full', async () => {
+    const mine = discord.say('this needs permission for a long command')
+    const request = await discord.until(() => discord.botSaid('Permission needed: Bash', mine))
+    expect(request.content).toContain('(cut: the complete text is in the attached file)')
+    expect(request.content).not.toContain('end-marker')
+    expect(request.files.length).toBe(1)
+    expect(request.files[0].name).toBe('request.txt')
+    expect(request.files[0].text).toEndWith('&& touch /tmp/end-marker')
+    discord.click(request, 'Deny')
+    await discord.until(() => discord.botSaid('the permission was: deny', mine))
+  })
+
   test('no answer in time counts as a deny', async () => {
     const mine = discord.say('this needs permission, nobody answers')
     const request = await discord.until(() => discord.botSaid('Permission needed: Bash', mine))
