@@ -24,7 +24,12 @@ To do outside the code:
 ## 3. Before a public release
 
 - Four releases are planned from one codebase: Unraid, TrueNAS, standalone Docker, and a Home Assistant app. Split what is Unraid-specific (the `host` helper's assumptions, the server scan, the allow list, the example tasks) into a platform profile.
-- A last scan for private text, then the GitHub repository, image registry, Community Apps template and support thread. (The repository starts without the development history, so there is no older history to scan.)
+- Publishing. Done locally: the repository is named `berthward`, on branch `main`, and starts with a single first commit, so there is no development history or earlier project name to clean up. The README, template and image label already point at `github.com/thecode/berthward` and `ghcr.io/thecode/berthward`, neither of which exists yet. Still to do, in order:
+  - A last scan of the files for private text.
+  - Create the GitHub repository and push.
+  - Publish the image (the workflow in `.github/workflows/` builds it for `ghcr.io`), and check that the `beta` tag the README and template name is the one it produces.
+  - Community Apps template and support thread.
+- `entrypoint.sh` still carries over the settings stamp of an install made under the working name Keepwright. No such install is left; drop that name from the list (the one for the upstream name stays).
 
 ## Dropped
 
