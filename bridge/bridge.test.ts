@@ -93,6 +93,7 @@ beforeAll(async () => {
       FAKE_DISCORD_SEND: discordSend,
       FAKE_CLAUDE_LOG: claudeLog,
       FAKE_LOST_SESSION: join(dir, 'lost-session'),
+      ...(process.env.FAKE_LINGER_MS ? { FAKE_LINGER_MS: process.env.FAKE_LINGER_MS } : {}),
   }
   // As left by an update that added allow entries (see entrypoint.sh).
   writeFileSync(join(dir, 'state', 'allow-added'), 'Bash(inspect *)\nRead(//host/boot/**)\n')
@@ -227,9 +228,19 @@ describe('chat', () => {
   })
 
   test('/status and !status both answer', async () => {
-    discord.slash('status')
-    expect((await discord.until(() => discord.botSaid('Idle; 0 queued'))).content).toContain('conversation: ongoing')
-    await ask('!status', 'Idle; 0 queued')
+    const before = discord.interactionReplies.length
+    const id = discord.slash('status')
+    const reply = await discord.until(() => discord.interactionReplies.slice(before).find(r => r.interaction === id))
+    expect(reply.data.content).toContain('conversation: ongoing')
+    // The run that answered the last message may still be finishing, and
+    // then the honest answer is "Working on a message".
+    for (let i = 0; ; i++) {
+      const answer = await ask('!status', '0 queued')
+      if (answer.content.startsWith('Idle; 0 queued')) break
+      expect(answer.content).toStartWith('Working on a message')
+      expect(i).toBeLessThan(40)
+      await Bun.sleep(100)
+    }
   })
 })
 

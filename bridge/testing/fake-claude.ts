@@ -122,4 +122,8 @@ if (said.includes('send me')) {
   // which takes a moment to finish after its last words.
   if (said.includes('linger')) await Bun.sleep(700)
 }
+// FAKE_LINGER_MS makes every run take that long to end after its answer, the
+// way a slow machine does. Running the tests with it set finds tests (and
+// code) that assume a run is over the moment its answer appears.
+if (Number(process.env.FAKE_LINGER_MS) > 0) await Bun.sleep(Number(process.env.FAKE_LINGER_MS))
 out({ type: 'result', subtype: 'success', is_error: false, result: 'done', session_id: sessionId })

@@ -101,6 +101,11 @@ jobs:
       - name: Bridge tests
         run: docker run --rm berthward:test bash -c 'cd /usr/local/lib/berthward/bridge && bun test'
 
+      # Again with every stand-in run taking a moment to end after its answer:
+      # this is what finds code that assumes a job is over once it has answered.
+      - name: Bridge tests, slow finish
+        run: docker run --rm -e FAKE_LINGER_MS=400 berthward:test bash -c 'cd /usr/local/lib/berthward/bridge && bun test bridge.test.ts'
+
       # Unraid runs on x86-64 only, so a single platform is built.
       - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
