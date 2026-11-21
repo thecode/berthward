@@ -2,16 +2,7 @@
 
 Open work for this project. Delete an item once it's done. An item we decide not to do moves to **Dropped** at the end: kept so it can be picked up again, but not something that has to be finished.
 
-## 1. For the owner
-
-Tried on a real server and working: the web terminal behind a real reverse proxy, `/login` with the automatic session restart, a first login on an empty data folder (the session leaves its welcome screen by itself), Discord-only mode, and password-only web sign-in.
-
-To do outside the code:
-
-- The name is Berthward. Checked on 2026-11-21 with no record of the word or its close spellings: the USPTO, EUIPO, TMview and WIPO Global Brand Database trademark registers (all classes, live and dead), Google Play, GitHub, Docker Hub, npm, PyPI, Steam, the App Store, the UK company register and a web search; the UK IPO register was searched by hand by the owner. One similar mark exists, BERTWARE (class 9 software, UK and EU, EUTM 018149590): the owner decided on 2026-11-21 to go ahead with Berthward. The domains `.com`, `.net`, `.org`, `.dev`, `.app`, `.io` and `.sh` were unregistered that day. Still open:
-  - Register a domain.
-
-## 2. Before a public release
+## 1. Before a public release
 
 - Four releases are planned from one codebase: Unraid, TrueNAS, standalone Docker, and a Home Assistant app. Split what is Unraid-specific (the `host` helper's assumptions, the server scan, the allow list, the example tasks) into a platform profile. Packaging files already live per platform under `platforms/` (so far `platforms/unraid/template.xml`); the profiles and the other platforms' packaging go next to it.
 - Publishing. Done locally: the repository is named `berthward`, on branch `main`, and starts with a single first commit, so there is no development history or earlier project name to clean up. The README, template and image label already point at `github.com/thecode/berthward` and `ghcr.io/thecode/berthward`, neither of which exists yet. Still to do, in order:
@@ -19,6 +10,12 @@ To do outside the code:
   - Create the GitHub repository and push.
   - Publish the image (the workflow in `.github/workflows/` builds it for `ghcr.io`), and check that the `beta` tag the README and template name is the one it produces.
   - Community Apps template and support thread.
+
+## Settled, for the record
+
+- Tried on a real server and working: the web terminal behind a real reverse proxy, `/login` with the automatic session restart, a first login on an empty data folder (the session leaves its welcome screen by itself), Discord-only mode, and password-only web sign-in.
+
+- The name is Berthward. Checked on 2026-11-21 with no record of the word or its close spellings: the USPTO, EUIPO, TMview and WIPO Global Brand Database trademark registers (all classes, live and dead), Google Play, GitHub, Docker Hub, npm, PyPI, Steam, the App Store, the UK company register and a web search; the UK IPO register was searched by hand by the owner. One similar mark exists, BERTWARE (class 9 software, UK and EU, EUTM 018149590): the owner decided on 2026-11-21 to go ahead with Berthward. `berthward.com` is registered to the project's owner; `.net`, `.org`, `.dev`, `.app`, `.io` and `.sh` were unregistered that day. Nothing in the repo uses the domain yet.
 
 ## Dropped
 
