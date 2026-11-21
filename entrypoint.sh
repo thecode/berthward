@@ -19,10 +19,10 @@ SETTINGS_DEFAULT=/usr/local/share/berthward/settings.json
 SETTINGS=/root/.claude/settings.json
 SETTINGS_STAMP=/root/.claude/.berthward-settings-version
 ALLOW_VERSIONS=/usr/local/share/berthward/allow-versions.json
-# Installs made under an earlier name of the project keep their stamp.
-for OLD_STAMP in /root/.claude/.claude-unraid-manager-settings-version /root/.claude/.keepwright-settings-version; do
-  if [ -f "$OLD_STAMP" ] && [ ! -f "$SETTINGS_STAMP" ]; then mv "$OLD_STAMP" "$SETTINGS_STAMP"; fi
-done
+# An install that came from claude-unraid-manager, which this is based on,
+# keeps its stamp.
+OLD_STAMP=/root/.claude/.claude-unraid-manager-settings-version
+if [ -f "$OLD_STAMP" ] && [ ! -f "$SETTINGS_STAMP" ]; then mv "$OLD_STAMP" "$SETTINGS_STAMP"; fi
 SETTINGS_VERSION=6   # bump whenever settings.json gains keys existing installs should receive
 mkdir -p /root/.claude
 stamp=$(cat "$SETTINGS_STAMP" 2>/dev/null || true)
