@@ -8,9 +8,7 @@ Tried on a real server and working: the web terminal behind a real reverse proxy
 
 To do outside the code:
 
-- The name is Berthward. Checked on 2026-11-21 with no record of the word or its close spellings: the USPTO, EUIPO, TMview and WIPO Global Brand Database trademark registers (all classes, live and dead), Google Play, GitHub, Docker Hub, npm, PyPI, Steam, the App Store, the UK company register and a web search. The domains `.com`, `.net`, `.org`, `.dev`, `.app`, `.io` and `.sh` were unregistered that day. Still open:
-  - The UK IPO's own search could not be queried automatically; search it by hand for BERTHWARD, BERTWARD and BIRTHWARD (https://trademarks.ipo.gov.uk/ipo-tmtext).
-  - Decide about one similar mark: BERTWARE, class 9 software, registered in the UK and EU (EUTM 018149590). Similar letters, different sound; not legal advice.
+- The name is Berthward. Checked on 2026-11-21 with no record of the word or its close spellings: the USPTO, EUIPO, TMview and WIPO Global Brand Database trademark registers (all classes, live and dead), Google Play, GitHub, Docker Hub, npm, PyPI, Steam, the App Store, the UK company register and a web search; the UK IPO register was searched by hand by the owner. One similar mark exists, BERTWARE (class 9 software, UK and EU, EUTM 018149590): the owner decided on 2026-11-21 to go ahead with Berthward. The domains `.com`, `.net`, `.org`, `.dev`, `.app`, `.io` and `.sh` were unregistered that day. Still open:
   - Register a domain.
 
 ## 2. Before a public release
