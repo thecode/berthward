@@ -209,21 +209,26 @@ async function approveWebSignIn(info: SignInInfo): Promise<boolean> {
     new ButtonBuilder().setCustomId(`web:allow:${id}`).setLabel('Allow').setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId(`web:deny:${id}`).setLabel('Deny').setStyle(ButtonStyle.Danger),
   )
-  const message = await postAlert(text, { components: [row] })
-  if (!message) return false
   return new Promise<boolean>(resolve => {
-    const timer = setTimeout(() => {
-      if (!webPending.delete(id)) return
-      void message.edit({ content: `${text}\n⌛ No answer in time: denied.`, components: [] }).catch(() => {})
-      resolve(false)
-    }, WEB_APPROVAL_MS)
-    webPending.set(id, {
-      message,
+    const entry = {
+      message: null as Message | null,
       text,
-      resolve: ok => {
+      resolve: (ok: boolean) => {
         clearTimeout(timer)
         resolve(ok)
       },
+    }
+    const timer = setTimeout(() => {
+      if (!webPending.delete(id)) return
+      void entry.message?.edit({ content: `${text}\n⌛ No answer in time: denied.`, components: [] }).catch(() => {})
+      resolve(false)
+    }, WEB_APPROVAL_MS)
+    // Registered before the request is posted: a click can arrive before the
+    // call that posts it has returned.
+    webPending.set(id, entry)
+    void postAlert(text, { components: [row] }).then(message => {
+      if (message) entry.message = message
+      else if (webPending.delete(id)) entry.resolve(false) // could not be shown
     })
   })
 }
@@ -332,6 +337,8 @@ interface Pending {
   timer: ReturnType<typeof setTimeout>
   message: Message | null
   summary: string
+  /** The line added to the request once it is answered. */
+  note?: string
 }
 const pending = new Map<string, Pending>()
 
@@ -339,6 +346,7 @@ function settle(id: string, decision: Decision, note: string): void {
   const p = pending.get(id)
   if (!p || p.decision) return
   p.decision = decision
+  p.note = note
   clearTimeout(p.timer)
   for (const w of p.waiters) w()
   p.waiters = []
@@ -375,6 +383,10 @@ async function requestApproval(chat: string, toolName: string, input: unknown): 
   const full = requestBody(toolName, input)
   const files = full.length > REQUEST_SHOWN ? [{ attachment: Buffer.from(full, 'utf8'), name: 'request.txt' }] : []
   p.message = await post(chat, summary, { components: [row], files })
+  // Answered before the call that posted it returned: close the request now.
+  if (p.message && p.note !== undefined) {
+    void p.message.edit({ content: `${p.summary}\n${p.note}`, components: [] }).catch(() => {})
+  }
   if (!p.message) {
     settle(id, { behavior: 'deny', message: 'The permission request could not be shown on Discord.' }, '')
   }

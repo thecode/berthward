@@ -324,6 +324,8 @@ describe('tasks', () => {
     const alert = await discord.until(() => discord.botSaid('🚨 **disk-check**'))
     expect(alert.content).toContain('disk 2 is failing')
 
+    // The alert is posted a moment before the run is recorded as finished.
+    await Bun.sleep(300)
     discord.slash('tasks')
     const list = await discord.until(() => discord.botSaid('**Tasks**'))
     expect(list.content).toContain('`disk-check` (script, `0 3 * * *`)')
