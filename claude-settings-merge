@@ -5,27 +5,50 @@
 # (user keys win on conflicts). The permissions.deny list is unioned (adding
 # a deny entry can only make things safer), and so is permissions.ask (an
 # ask entry outranks an allow entry, so a shipped one makes an existing
-# install ask again for that command); permissions.allow stays the
-# user's own list, so an entry they removed to get prompted again stays
-# removed. If the user's hooks do not contain the guard hook, the shipped
+# install ask again for that command). permissions.allow stays the user's
+# own list, with one addition: given the version table and the install's
+# version stamp, shipped allow entries that arrived after that stamp are
+# appended. An entry from an earlier version that is missing was removed by
+# the user and stays removed. If the user's hooks do not contain the guard hook, the shipped
 # PreToolUse entries are appended to theirs instead of replacing them.
 # Idempotent: running it on its own output changes nothing.
 # With --missing-allow <defaults> <user> it prints, one per line, the shipped
 # allow entries the user's file lacks, for an informational log line.
+# With --new-allow <defaults> <user> <versions> <stamp> it prints the entries
+# the merge would append.
 set -euo pipefail
+
+# Shipped allow entries the user lacks that arrived after version $stamp.
+# shellcheck disable=SC2016  # jq variables, not shell ones
+NEW_ALLOW='
+  def new_allow($defaults; $user; $versions; $stamp):
+    [ ($defaults.permissions.allow // [])[]
+      | select(. as $e | (($user.permissions.allow // []) | index($e)) == null)
+      | select(($versions[.] // 0) > $stamp) ];
+'
+
+if [ "${1:-}" = "--new-allow" ] && [ $# -eq 5 ]; then
+  jq -r -n --slurpfile d "$2" --slurpfile u "$3" --slurpfile v "$4" --argjson stamp "$5" \
+    "$NEW_ALLOW"' new_allow($d[0]; $u[0]; $v[0]; $stamp) | .[]'
+  exit 0
+fi
 
 if [ "${1:-}" = "--missing-allow" ] && [ $# -eq 3 ]; then
   jq -r -s '(.[0].permissions.allow // []) - (.[1].permissions.allow // []) | .[]' "$2" "$3"
   exit 0
 fi
 
-if [ $# -ne 2 ]; then
-  echo "usage: claude-settings-merge <defaults.json> <user.json>" >&2
+if [ $# -ne 2 ] && [ $# -ne 4 ]; then
+  echo "usage: claude-settings-merge <defaults.json> <user.json> [<allow-versions.json> <stamp>]" >&2
   echo "       claude-settings-merge --missing-allow <defaults.json> <user.json>" >&2
+  echo "       claude-settings-merge --new-allow <defaults.json> <user.json> <allow-versions.json> <stamp>" >&2
   exit 64
 fi
+VERSIONS=${3:-}
+STAMP=${4:-0}
+[ -n "$VERSIONS" ] || { VERSIONS=$(mktemp); echo '{}' > "$VERSIONS"; trap 'rm -f "$VERSIONS"' EXIT; }
 
-jq -s '
+jq -s --slurpfile v "$VERSIONS" --argjson stamp "$STAMP" "$NEW_ALLOW"'
   def has_guard:
     [ (.hooks.PreToolUse? // [])[] | (.hooks? // [])[] | (.command? // "") ]
     | index("/usr/local/bin/claude-guard") != null;
@@ -34,6 +57,7 @@ jq -s '
   ($defaults * $user)
   | .permissions.deny = ((($user.permissions.deny // []) + ($defaults.permissions.deny // [])) | unique)
   | .permissions.ask = ((($user.permissions.ask // []) + ($defaults.permissions.ask // [])) | unique)
+  | .permissions.allow = ((.permissions.allow // []) + new_allow($defaults; $user; $v[0]; $stamp))
   | if ($user | has_guard) then .
     else .hooks.PreToolUse = (($user.hooks.PreToolUse // []) + ($defaults.hooks.PreToolUse // []))
     end

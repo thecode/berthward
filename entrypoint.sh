@@ -13,10 +13,12 @@ export HOST_HELPER_IMAGE="${HOST_HELPER_IMAGE:-alpine:3.21}"
 # list, guard hook). First run: copy. Later runs: keep the user's file; when
 # the shipped settings gained keys since the install was last brought up to
 # date (version stamp), merge them underneath the user's keys once. A key the
-# user removes afterwards stays removed.
+# user removes afterwards stays removed. Allow entries that are new since the
+# install's stamp are added, and the user is told which (log, and Discord).
 SETTINGS_DEFAULT=/usr/local/share/berthward/settings.json
 SETTINGS=/root/.claude/settings.json
 SETTINGS_STAMP=/root/.claude/.berthward-settings-version
+ALLOW_VERSIONS=/usr/local/share/berthward/allow-versions.json
 # Installs made under an earlier name of the project keep their stamp.
 for OLD_STAMP in /root/.claude/.claude-unraid-manager-settings-version /root/.claude/.keepwright-settings-version; do
   if [ -f "$OLD_STAMP" ] && [ ! -f "$SETTINGS_STAMP" ]; then mv "$OLD_STAMP" "$SETTINGS_STAMP"; fi
@@ -29,13 +31,20 @@ if [ ! -f "$SETTINGS" ]; then
   cp "$SETTINGS_DEFAULT" "$SETTINGS"
   echo "$SETTINGS_VERSION" > "$SETTINGS_STAMP"
 elif [ "$stamp" -lt "$SETTINGS_VERSION" ]; then
-  if claude-settings-merge "$SETTINGS_DEFAULT" "$SETTINGS" > "$SETTINGS.merged" 2>/dev/null; then
+  added=$(claude-settings-merge --new-allow "$SETTINGS_DEFAULT" "$SETTINGS" "$ALLOW_VERSIONS" "$stamp" 2>/dev/null || true)
+  if claude-settings-merge "$SETTINGS_DEFAULT" "$SETTINGS" "$ALLOW_VERSIONS" "$stamp" > "$SETTINGS.merged" 2>/dev/null; then
     cp "$SETTINGS" "$SETTINGS.bak"
     mv "$SETTINGS.merged" "$SETTINGS"
     echo "$SETTINGS_VERSION" > "$SETTINGS_STAMP"
     echo "settings.json: merged in the shipped defaults (guard hook, permission mode, deny and ask lists) underneath your settings (backup: settings.json.bak)."
+    if [ -n "$added" ]; then
+      echo "settings.json: new in this version, Claude may now do these without asking: $(printf '%s' "$added" | tr '\n' ' ')"
+      # The bridge posts this once on Discord and then removes the file.
+      mkdir -p /root/.claude/bridge
+      printf '%s\n' "$added" >> /root/.claude/bridge/allow-added
+    fi
     missing=$(claude-settings-merge --missing-allow "$SETTINGS_DEFAULT" "$SETTINGS" 2>/dev/null | tr '\n' ' ')
-    [ -z "$missing" ] || echo "settings.json: your allow list was left as is; shipped read-only entries it does not have: $missing"
+    [ -z "$missing" ] || echo "settings.json: shipped entries your allow list does not have (removed earlier, left that way): $missing"
   else
     rm -f "$SETTINGS.merged"
     echo "Warning: settings.json is not valid JSON; the shipped defaults (guard hook, permission mode) were not merged in."

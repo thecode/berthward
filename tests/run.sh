@@ -648,6 +648,25 @@ missing=$(bash "$ROOT/claude-settings-merge" --missing-allow "$DEFAULTS" "$TMP/b
 if printf '%s\n' "$missing" | grep -qx 'Bash(logs \*)'; then pass "--missing-allow reports shipped entries the user lacks"; else fail "--missing-allow output wrong: $missing"; fi
 if [ "$(jq '[.hooks.PreToolUse[].hooks[].command] | map(select(. == "/usr/local/bin/claude-guard")) | length' "$TMP/merged4.json")" = 1 ]; then pass "guard not duplicated"; else fail "guard duplicated"; fi
 
+# New allow entries: an install stamped before an entry arrived receives it;
+# an entry from the install's own version or earlier stays as the user left it.
+VERS="$ROOT/allow-versions.json"
+if jq -e --slurpfile s "$DEFAULTS" '. as $v | ($s[0].permissions.allow | all(. as $e | $v | has($e))) and (keys | all(. as $k | $s[0].permissions.allow | index($k) != null))' "$VERS" >/dev/null; then pass "every shipped allow entry has a version, and no others"; else fail "allow-versions.json does not match the allow list"; fi
+SV=$(sed -n 's/^SETTINGS_VERSION=\([0-9]*\).*/\1/p' "$ROOT/entrypoint.sh")
+if jq -e --argjson max "$SV" 'all(.[]; . >= 1 and . <= $max)' "$VERS" >/dev/null; then pass "no allow entry is newer than SETTINGS_VERSION"; else fail "an allow entry has a version above SETTINGS_VERSION ($SV)"; fi
+cat > "$TMP/v4.json" <<'EOF'
+{ "permissions": { "allow": ["Bash(docker ps *)", "Bash(my-own-tool *)"] } }
+EOF
+bash "$ROOT/claude-settings-merge" "$DEFAULTS" "$TMP/v4.json" "$VERS" 4 > "$TMP/merged5.json"
+if jq -e '.permissions.allow | (index("Bash(inspect *)") != null) and (index("Bash(discord-send *)") != null) and (index("Read(//host/boot/**)") != null)' "$TMP/merged5.json" >/dev/null; then pass "allow entries newer than the stamp are added"; else fail "new allow entries not added"; fi
+if jq -e '.permissions.allow | (index("Bash(logs *)") == null) and (.[0:2] == ["Bash(docker ps *)", "Bash(my-own-tool *)"])' "$TMP/merged5.json" >/dev/null; then pass "older entries the user lacks stay out, the user's own stay first"; else fail "allow list changed beyond the new entries"; fi
+added=$(bash "$ROOT/claude-settings-merge" --new-allow "$DEFAULTS" "$TMP/v4.json" "$VERS" 4 | sort | tr '\n' ' ')
+if [ "$added" = "Bash(discord-send *) Bash(inspect *) Read(//host/boot/**) " ]; then pass "--new-allow lists what would be added"; else fail "--new-allow output wrong: $added"; fi
+bash "$ROOT/claude-settings-merge" "$DEFAULTS" "$TMP/v4.json" "$VERS" "$SV" > "$TMP/merged6.json"
+if jq -e '.permissions.allow == ["Bash(docker ps *)", "Bash(my-own-tool *)"]' "$TMP/merged6.json" >/dev/null; then pass "an up-to-date install gets no allow entries"; else fail "allow entries added to an up-to-date install"; fi
+bash "$ROOT/claude-settings-merge" "$DEFAULTS" "$TMP/merged5.json" "$VERS" 4 > "$TMP/merged7.json"
+if [ "$(jq -S . "$TMP/merged5.json")" = "$(jq -S . "$TMP/merged7.json")" ]; then pass "adding allow entries is idempotent"; else fail "second merge changed the allow list"; fi
+
 # Idempotent: merging the output again changes nothing.
 merge "$TMP/merged2.json" > "$TMP/merged3.json"
 if [ "$(jq -S . "$TMP/merged2.json")" = "$(jq -S . "$TMP/merged3.json")" ]; then pass "merge is idempotent"; else fail "merge not idempotent"; fi

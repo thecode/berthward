@@ -94,6 +94,8 @@ beforeAll(async () => {
       FAKE_CLAUDE_LOG: claudeLog,
       FAKE_LOST_SESSION: join(dir, 'lost-session'),
   }
+  // As left by an update that added allow entries (see entrypoint.sh).
+  writeFileSync(join(dir, 'state', 'allow-added'), 'Bash(inspect *)\nRead(//host/boot/**)\n')
   await startBridge()
 }, 20000)
 
@@ -102,6 +104,15 @@ afterAll(async () => {
   await bridge?.exited
   discord?.stop()
   rmSync(dir, { recursive: true, force: true })
+})
+
+describe('after an update that added allow entries', () => {
+  test('the bot says once what Claude may now do without asking', async () => {
+    const note = await discord.until(() => discord.botSaid('This update lets Claude do these without asking'))
+    expect(note.content).toContain('- `Bash(inspect *)`')
+    expect(note.content).toContain('- `Read(//host/boot/**)`')
+    await discord.until(() => !existsSync(join(dir, 'state', 'allow-added')))
+  })
 })
 
 describe('start', () => {

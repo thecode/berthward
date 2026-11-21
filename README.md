@@ -198,8 +198,10 @@ directory and can be edited. It protects against mistakes, not against a
 determined adversary with socket access. The file is seeded on first start.
 When an update ships new settings, they are merged in once underneath your
 own keys (a `settings.json.bak` is kept); your values always win. New shipped
-deny entries are added to your deny list; your allow list is left exactly as
-you set it, and the start log names shipped read-only entries it lacks. To
+deny and ask entries are added to your lists. Your allow list gets only the
+entries that are new in the update: the start log and a message on Discord
+name them, and one you remove afterwards stays removed. Entries from earlier
+versions that your list lacks are left out. To
 turn a shipped setting off, set it to the value you want rather than deleting
 the line, otherwise a later update puts the shipped default back.
 

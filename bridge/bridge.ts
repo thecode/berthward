@@ -999,6 +999,18 @@ client.once(Events.ClientReady, c => {
       saveState()
     })
   }
+  // An update that added entries to the allow list left a note (entrypoint.sh).
+  const addedFile = join(STATE_DIR, 'allow-added')
+  if (existsSync(addedFile)) {
+    const added = [...new Set(readFileSync(addedFile, 'utf8').split('\n').map(l => l.trim()).filter(Boolean))]
+    const text =
+      '🔓 **This update lets Claude do these without asking:**\n' +
+      added.map(e => `- \`${e.replace(/`/g, "'")}\``).join('\n') +
+      '\nTo take one back, remove it from `permissions.allow` in `settings.json` (in the data folder, under `home/.claude/`). It then stays removed.'
+    void (added.length ? postAlert(text.slice(0, 1900)) : Promise.resolve(true)).then(sent => {
+      if (sent) rmSync(addedFile, { force: true })
+    })
+  }
   tasks.startClock()
   cleanInbox()
   setInterval(cleanInbox, 6 * 3600_000).unref()

@@ -189,8 +189,9 @@ Code says so in the terminal shortly after start.
 - **Update:** Docker tab → container → **Force Update** when a new image is
   out. Your login, settings and history live in the Data folder and are kept.
   If the new image brings new default settings, they are merged in underneath
-  yours (your values win; new deny entries are added; your allow list is left
-  as it is, and the start log names shipped entries it lacks); a
+  yours (your values win; new deny and ask entries are added; allow entries
+  that are new in the update are added too, and named in the start log and
+  on Discord); a
   `settings.json.bak` is left next to the file.
 - **Stop/Start:** as any container. `CLAUDE.md` is rebuilt on every start; the
   last conversation is resumed.

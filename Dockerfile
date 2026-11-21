@@ -49,6 +49,7 @@ COPY task-examples/        /usr/local/share/berthward/task-examples/
 COPY bashrc                /usr/local/share/berthward/bashrc
 RUN printf '\n' >> /etc/bash.bashrc && cat /usr/local/share/berthward/bashrc >> /etc/bash.bashrc
 COPY settings.json         /usr/local/share/berthward/settings.json
+COPY allow-versions.json   /usr/local/share/berthward/allow-versions.json
 COPY entrypoint.sh generate-claude-md.sh host boot-mode logs inspect claude-guard claude-session claude-settings-merge claude-bridge claude-health discord-send /usr/local/bin/
 RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/generate-claude-md.sh \
              /usr/local/bin/host /usr/local/bin/boot-mode /usr/local/bin/logs /usr/local/bin/inspect /usr/local/bin/claude-guard \

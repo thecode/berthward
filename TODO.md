@@ -12,13 +12,9 @@ Open work for this project. Delete an item once it's done. An item we decide not
   - Turn on two-factor authentication for the Discord account: it is what approves commands, tasks and web sign-ins.
 - Why there is a bridge: the official Discord channel plugin needs the channels research preview, which is off by default for Team and Enterprise accounts until an owner enables it, so the plugin silently receives nothing there.
 
-## 2. For the owner: things to decide
+## 2. For the owner
 
 Tried on a real server and working: the web terminal behind a real reverse proxy, `/login` with the automatic session restart, a first login on an empty data folder (the session leaves its welcome screen by itself), Discord-only mode, and password-only web sign-in.
-
-To decide:
-
-- Existing installs do not receive new allow-list entries (the settings merge leaves a user's allow list alone and only logs what is missing). Should the preset be offered more actively?
 
 To do outside the code:
 
