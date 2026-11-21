@@ -118,5 +118,8 @@ if (said.includes('send me')) {
   say(`the permission was: ${decision.behavior}`)
 } else {
   say(`fake claude heard: ${said} (${resume ? 'resumed' : 'new'} conversation)`)
+  // The answer is out, the run is not over yet: as with the real Claude,
+  // which takes a moment to finish after its last words.
+  if (said.includes('linger')) await Bun.sleep(700)
 }
 out({ type: 'result', subtype: 'success', is_error: false, result: 'done', session_id: sessionId })

@@ -580,7 +580,13 @@ interface Job {
   text: string
 }
 const queue: Job[] = []
-let running: { chat: string; proc: ReturnType<typeof Bun.spawn>; stopped: boolean } | null = null
+let running: {
+  chat: string
+  proc: ReturnType<typeof Bun.spawn>
+  stopped: boolean
+  /** /new arrived while this job ran: its conversation must not be kept. */
+  forgotten?: boolean
+} | null = null
 
 function denyPendingFor(chat: string, why: string): void {
   for (const [id, p] of pending) {
@@ -668,12 +674,13 @@ async function runClaude(job: Job, fresh: boolean): Promise<boolean> {
   clearInterval(typingTimer)
   if (limit) clearTimeout(limit)
   const stopped = running?.stopped ?? false
+  const forgotten = running?.forgotten ?? false
   running = null
   denyPendingFor(job.chat, 'The run ended before this was answered.')
 
   // A conversation that was cut short on its first message still exists:
   // keep it, so "ask again in smaller steps" continues where it stopped.
-  if ((stopped || timedOut) && !existing) {
+  if ((stopped || timedOut) && !existing && !forgotten) {
     state.sessions[job.chat] = sessionId
     state.prompts = { ...state.prompts, [job.chat]: PROMPT_VERSION }
     saveState()
@@ -692,9 +699,11 @@ async function runClaude(job: Job, fresh: boolean): Promise<boolean> {
     return false
   }
   if (result?.ok) {
-    state.sessions[job.chat] = sessionId
-    state.prompts = { ...state.prompts, [job.chat]: PROMPT_VERSION }
-    saveState()
+    if (!forgotten) {
+      state.sessions[job.chat] = sessionId
+      state.prompts = { ...state.prompts, [job.chat]: PROMPT_VERSION }
+      saveState()
+    }
     if (!posted && result.text.trim() !== '') await post(job.chat, result.text)
     if (!posted && result.text.trim() === '') await post(job.chat, '(done, nothing to report)')
     return false
@@ -808,6 +817,9 @@ async function runCommand(name: string, arg: string, ctx: CommandContext): Promi
       await ctx.reply(HELP)
       return true
     case 'new':
+      // A job that is still finishing would otherwise save its conversation
+      // again a moment later and undo this.
+      if (running?.chat === chat) running.forgotten = true
       delete state.sessions[chat]
       saveState()
       await ctx.reply('🆕 Next message starts a fresh conversation.')

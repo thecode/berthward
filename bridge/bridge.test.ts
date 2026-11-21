@@ -182,6 +182,16 @@ describe('chat', () => {
     expect(reply.content).toContain('new conversation')
   })
 
+  test('/new holds when it arrives while the last answer is still finishing', async () => {
+    await ask('please linger', 'fake claude heard: please linger')
+    // Sent at once: the run that just answered has not ended yet.
+    const cmd = discord.say('!new')
+    await discord.until(() => discord.botSaid('fresh conversation', cmd))
+    await Bun.sleep(900) // let that run end
+    const reply = await ask('hello after new', 'fake claude heard: hello after new')
+    expect(reply.content).toContain('new conversation')
+  })
+
   test('a lost conversation is replaced by a new one without bothering the user', async () => {
     writeFileSync(join(dir, 'lost-session'), '')
     const reply = await ask('hello four', 'fake claude heard: hello four')
