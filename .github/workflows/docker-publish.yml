@@ -6,6 +6,11 @@ on:
     tags: ['v*']
   pull_request:
   workflow_dispatch:
+    inputs:
+      sync_template:
+        description: Copy the Unraid template to the templates repository
+        type: boolean
+        default: false
 
 env:
   REGISTRY: ghcr.io
@@ -118,3 +123,44 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # Community Applications reads the Unraid template from the templates
+  # repository, not from here. A release copies it there once its image is
+  # pushed; "Run workflow" with the box ticked does the same from main, for a
+  # change of wording that should not wait for a release.
+  template:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.sync_template)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    concurrency: sync-template
+    env:
+      TEMPLATES_REPO: thecode/unraid-docker-templates
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # A deploy key of the templates repository: it can write there and
+      # nowhere else.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ env.TEMPLATES_REPO }}
+          ssh-key: ${{ secrets.TEMPLATES_DEPLOY_KEY }}
+          path: templates-repo
+
+      - name: Copy the template and push it if it changed
+        env:
+          SOURCE: ${{ github.ref_type == 'tag' && github.ref_name || format('main at {0}', github.sha) }}
+        run: |
+          cp platforms/unraid/template.xml templates-repo/templates/berthward.xml
+          cd templates-repo
+          if git diff --quiet; then
+            echo "The template is unchanged; nothing to push."
+            exit 0
+          fi
+          git config user.name thecode
+          git config user.email 1858925+thecode@users.noreply.github.com
+          git commit -q -am "berthward: sync template from $SOURCE"
+          git push
+          git log -1 --format='pushed %h %s'
