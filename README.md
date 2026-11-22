@@ -246,7 +246,7 @@ Three independent layers, in order of how much you should rely on them:
    never be done from this container. A second tier **always asks**, with a
    reason shown in the prompt, whatever permission mode the session is in:
    downloads piped to a shell, network tools (`curl`, `wget`, `ssh`, `scp`,
-   `nc`, `dig`, …), containers started with host-level access, commands touching the
+   `nc`, `dig`, …; `ping` too, unless it is a short ping to an IP address), containers started with host-level access, commands touching the
    flash drive while it is mounted read-write (while read-only, the kernel
    refuses writes and the guard has nothing to add), remounts and namespace
    changes, service restarts, cron/`at` entries and `emcmd` made through

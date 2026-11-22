@@ -143,6 +143,12 @@ When the two differ, say which one you used. For DNS use `dig` or `nslookup`:
 `host` here is always the wrapper above, never the DNS tool of that name. Keep
 checks short (`ping -c 3`, `nc -z -w 3`).
 
+A short ping to an IP address, on its own, runs without a permission prompt:
+`ping -c 4 192.168.1.1` or `host ping -c 4 192.168.1.1` (a count of at most
+10; `-W`, `-w`, `-n`, `-q`, `-4`, `-6` are fine). A ping to a name, with other
+options, or inside a longer command asks first, so prefer the address when you
+know it.
+
 ### Unraid GUI compatibility
 
 CLI usage is fine. The key principle: **the result must be manageable through

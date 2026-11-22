@@ -96,8 +96,8 @@ done
 # commands to emhttpd (the Unraid web API; emhttpd writes /boot/config). `cat`
 # and `ls` of cron files stay silent; copying one out asks once.
 # dig and nslookup are on the list because a lookup of a made-up name carries
-# that name to whoever runs the domain. ping and traceroute are not: they are
-# asked about like any other command in Manual mode.
+# that name to whoever runs the domain. traceroute is not: it is asked about
+# like any other command in Manual mode. ping has its own rule further down.
 NET='(curl|wget|nc|ncat|netcat|socat|ssh|scp|sftp|telnet|smbclient|dig|nslookup)'
 CMD_START="(^|[;&|(]|\\\$\(|${B}(host|sudo|exec|nohup|command|env)[[:space:]]+)[[:space:]]*"
 NET_CALL="([[:space:]\"']${NET}${T}|${CMD_START}(/[^[:space:]\"']*/)?${NET}${T})"
@@ -152,6 +152,22 @@ for rule in "${ask_rules[@]}"; do
     exit 0
   fi
 done
+
+# ── ping ─────────────────────────────────────────────────────────────────────
+# `ping …` and `host ping …` are on the allow list, so that a short ping to an
+# address needs no approval. Every other use of ping still asks: a name (the
+# lookup carries the name out, like dig), a pattern, a flood or a packet size
+# (-p, -f, -s), no count or a long one, and ping as part of a longer command.
+PING_CALL="${INVOKE}([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*ping${T}"
+PING_OPT='(-c[[:space:]]*([1-9]|10)|-[wW][[:space:]]*[0-9]{1,2}|-[nq46])'
+PING_ADDR='(([0-9]{1,3}\.){3}[0-9]{1,3}|[0-9A-Fa-f]*:[0-9A-Fa-f:.]*(%[[:alnum:]]+)?)'
+PING_PLAIN="^[[:space:]]*(host[[:space:]]+)?ping([[:space:]]+${PING_OPT})*[[:space:]]+${PING_ADDR}([[:space:]]+${PING_OPT})*([[:space:]]+2>&1)?[[:space:]]*\$"
+PING_COUNT='[[:space:]]-c[[:space:]]*[0-9]'
+if printf '%s\n' "$norm" | grep -Eq -- "$PING_CALL" && ! [[ $norm =~ $PING_PLAIN && $norm =~ $PING_COUNT ]]; then
+  jq -cn --arg reason "claude-guard: ping to a name, or beyond a short ping to an address (a looked-up name leaves the network, as with dig). Review this command before approving." \
+    '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: "ask", permissionDecisionReason: $reason}}'
+  exit 0
+fi
 
 # Last, so that a more specific reason (network, deletion) wins over this one.
 # The mount check runs only for commands that mention the flash drive.
