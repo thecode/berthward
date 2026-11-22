@@ -513,6 +513,7 @@ expect_ask 'docker run -v=/:/h alpine' "host-level access"
 expect_ask 'cat /proc/1/environ' "environment of other processes"
 expect_ask "tr '\\0' '\\n' < /proc/1/environ" "environment of other processes"
 expect_ask 'cat /proc/*/environ' "environment of other processes"
+# shellcheck disable=SC2016  # the $p must reach the guard unexpanded
 expect_ask 'for p in 1 7; do cat /proc/$p/environ; done' "environment of other processes"
 expect_ask 'cat /proc/1/task/1/environ' "environment of other processes"
 expect_ask 'ps auxe' "environment of other processes"
