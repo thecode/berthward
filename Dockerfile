@@ -51,7 +51,12 @@ COPY --from=dockercli /usr/local/bin/docker /usr/local/bin/docker
 RUN apt-get update && apt-get install -y --no-install-recommends \
       tini tmux git curl ca-certificates openssh-client \
       ripgrep jq procps \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+      iputils-ping traceroute dnsutils iproute2 netcat-openbsd \
+    && apt-get clean && rm -rf /var/lib/apt/lists/* \
+    # dnsutils brings a DNS lookup tool that is also called "host". Here that
+    # name belongs to the helper that runs a command on the server; dig and
+    # nslookup do the lookups.
+    && rm -f /usr/bin/host /usr/share/man/man1/host.1.gz
 
 # Everything else the image adds is under rootfs/, laid out as it sits in the
 # container: helpers in /usr/local/bin, and in /usr/local/share/berthward the
