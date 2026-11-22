@@ -43,13 +43,20 @@ The Docker socket gives this container root-equivalent access to your server, an
 
 Berthward is an independent project based on claude-unraid-manager by mygrexit. It is not affiliated with or endorsed by Anthropic.</Overview>
   <Changes>
+### 0.1.0-beta.2
+- Web terminal: new optional field Web Terminal Host Names. With a list, the page answers only under those names and plain addresses. An unanswered sign-in now says so instead of "denied".
+- Reading another process's environment asks first, like other places that can show the bot token.
+- Names from the server can no longer change the structure of Claude's instructions file.
+- The bridge's local endpoints accept requests only from the job that is being answered.
+- A slash command used in another bot's channel now says which bot it is and where it answers.
+
 ### 0.1.0-beta.1
 - First version of Berthward, based on claude-unraid-manager 0.1.0-beta.8.
 - Discord bridge with Allow / Deny buttons, scheduled monitoring tasks with approval, web terminal with Discord-approved sign-in, login from Discord, bridge-only mode.
 </Changes>
   <Category>Tools:System</Category>
   <WebUI>http://[IP]:[PORT:7682]/</WebUI>
-  <TemplateURL>https://raw.githubusercontent.com/thecode/berthward/main/platforms/unraid/template.xml</TemplateURL>
+  <TemplateURL>https://raw.githubusercontent.com/thecode/unraid-docker-templates/main/templates/berthward.xml</TemplateURL>
   <Icon>https://raw.githubusercontent.com/thecode/berthward/main/icon.png</Icon>
   <ExtraParams>--hostname berthward</ExtraParams>
   <DonateText/>

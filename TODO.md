@@ -8,7 +8,7 @@ Open work for this project. Delete an item once it's done. An item we decide not
 - Publishing. Done: the GitHub repository exists (private), and the image `ghcr.io/thecode/berthward` is published as `0.1.0-beta.1` and `beta` (package private). That image was pulled and run on a real server from the Unraid template. Still to do, in order:
   - Make the repository and the package public. A public package cannot be made private again, only deleted.
   - Protect `main`: no force pushes or deletion, and require the `test` and `build` checks.
-  - Community Apps template and support thread.
+  - Community Apps: copy `platforms/unraid/template.xml` to `templates/berthward.xml` in `thecode/unraid-docker-templates`, which Community Applications already reads. Only after the image is public, or the listing cannot be installed. A forum support thread is optional; the template's support link goes to the GitHub issues.
 
 ## Settled, for the record
 
