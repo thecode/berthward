@@ -34,8 +34,13 @@ things:
 
 ## 3. Install the container
 
-Berthward is not in Community Applications yet. Until it is, add the template
-by hand, on the Unraid terminal:
+On the Unraid web interface: **Apps** → search for *berthward* → **Install**.
+This needs the Community Applications plugin, which most servers already have.
+The template pulls the published image, `ghcr.io/thecode/berthward:beta`, and
+Unraid's update check and **Force Update** work as for any other container.
+
+Without Community Applications, add the template by hand on the Unraid
+terminal:
 
 ```bash
 wget -O /boot/config/plugins/dockerMan/templates-user/my-berthward.xml \
@@ -43,12 +48,7 @@ wget -O /boot/config/plugins/dockerMan/templates-user/my-berthward.xml \
 ```
 
 Then Docker tab → **Add Container** → choose *berthward* under *User
-templates*. The template pulls the published image,
-`ghcr.io/thecode/berthward:beta`, and Unraid's update check and **Force
-Update** work as for any other container.
-
-Once it is in Community Applications: **Apps** → search for *berthward* →
-**Install**.
+templates*.
 
 To build the image yourself instead, see
 [Building and Testing Locally](../README.md#building-and-testing-locally).
