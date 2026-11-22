@@ -1,5 +1,8 @@
 # Berthward
 
+**Chat with your server on Discord and let it keep watch: Claude asks before
+every change and alerts you when something's wrong.**
+
 [Claude Code](https://claude.com/claude-code) as an administrator for your
 home server: an always-on container in which Claude looks after your
 containers, storage, VMs, plugins and configuration. You talk to it from

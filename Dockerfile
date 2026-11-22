@@ -79,7 +79,7 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
   CMD /usr/local/bin/claude-health
 
 LABEL org.opencontainers.image.source="https://github.com/thecode/berthward" \
-      org.opencontainers.image.description="Claude Code as an administrator for your home server, with Discord approvals, monitoring tasks and a web terminal" \
+      org.opencontainers.image.description="Chat with your server on Discord and let it keep watch: Claude asks before every change and alerts you when something's wrong." \
       org.opencontainers.image.licenses="MIT"
 
 ENTRYPOINT ["/usr/bin/tini", "--"]
