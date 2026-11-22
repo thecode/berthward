@@ -95,7 +95,10 @@ done
 # a file placed under /etc/cron* or /var/spool/cron, and `emcmd`, which sends
 # commands to emhttpd (the Unraid web API; emhttpd writes /boot/config). `cat`
 # and `ls` of cron files stay silent; copying one out asks once.
-NET='(curl|wget|nc|ncat|netcat|socat|ssh|scp|sftp|telnet|smbclient)'
+# dig and nslookup are on the list because a lookup of a made-up name carries
+# that name to whoever runs the domain. ping and traceroute are not: they are
+# asked about like any other command in Manual mode.
+NET='(curl|wget|nc|ncat|netcat|socat|ssh|scp|sftp|telnet|smbclient|dig|nslookup)'
 CMD_START="(^|[;&|(]|\\\$\(|${B}(host|sudo|exec|nohup|command|env)[[:space:]]+)[[:space:]]*"
 NET_CALL="([[:space:]\"']${NET}${T}|${CMD_START}(/[^[:space:]\"']*/)?${NET}${T})"
 SH='(ba|da|z)?sh'

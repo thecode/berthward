@@ -133,6 +133,16 @@ only the Docker socket is required. Always use `host …` rather than spelling
 out the `docker run … nsenter …` form: it is shorter, avoids quoting mistakes,
 and is what the permission rules recognise.
 
+### Network checks
+
+This container has `ping`, `traceroute`, `dig`, `nslookup`, `nc`, `ip` and
+`ss`. Run plainly, they show the network as a container on Docker's bridge
+sees it, which is the right view for "why can't my container reach X". Through
+`host` (`host ping -c 3 …`, `host ip route`) they show the server's own view.
+When the two differ, say which one you used. For DNS use `dig` or `nslookup`:
+`host` here is always the wrapper above, never the DNS tool of that name. Keep
+checks short (`ping -c 3`, `nc -z -w 3`).
+
 ### Unraid GUI compatibility
 
 CLI usage is fine. The key principle: **the result must be manageable through
