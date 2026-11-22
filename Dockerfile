@@ -27,7 +27,7 @@ RUN npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
 # ── Docker CLI ───────────────────────────────────────────────────────────────
 # A stage of its own so that the image it comes from is pinned and updated
 # like the others. Only the client binary is copied out of it.
-FROM docker:28-cli@sha256:625d9431a9f54c5a2bc90f24f0e1c3d55b1349fd857dd85035f98c2c9acbdd4d AS dockercli
+FROM docker:29-cli@sha256:34507eb5069d8be82c95dd3b6987d4250fd5fee49b82e2509b7d7a7030740d6d AS dockercli
 
 # ── runtime ──────────────────────────────────────────────────────────────────
 # No Node.js in the runtime image: Claude Code runs natively. MCP servers that
