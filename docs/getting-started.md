@@ -136,7 +136,7 @@ containers, VMs and plugins. Write to the bot:
 - *How full are my pools, and what is taking the space?*
 
 Read-only commands (`docker ps`, `logs <container>`, `host zpool status`,
-...) run without asking. Anything else arrives as a **permission request**:
+a short `ping` to an IP address, ...) run without asking. Anything else arrives as a **permission request**:
 the exact command, with **Allow** and **Deny** buttons. That request is your
 main safety control. Read it.
 

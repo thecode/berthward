@@ -29,7 +29,7 @@ ALLOW_VERSIONS=/usr/local/share/berthward/allow-versions.json
 # keeps its stamp.
 OLD_STAMP=/root/.claude/.claude-unraid-manager-settings-version
 if [ -f "$OLD_STAMP" ] && [ ! -f "$SETTINGS_STAMP" ]; then mv "$OLD_STAMP" "$SETTINGS_STAMP"; fi
-SETTINGS_VERSION=8   # bump whenever settings.json gains keys existing installs should receive
+SETTINGS_VERSION=9  # bump whenever settings.json gains keys existing installs should receive
 mkdir -p /root/.claude
 stamp=$(cat "$SETTINGS_STAMP" 2>/dev/null || true)
 case "$stamp" in ''|*[!0-9]*) stamp=0 ;; esac

@@ -45,7 +45,9 @@
       "Bash(host apcaccess *)",
       "Edit(//workspace/**)",
       "Read(//host/boot/**)",
-      "Bash(discord-send *)"
+      "Bash(discord-send *)",
+      "Bash(ping *)",
+      "Bash(host ping *)"
     ],
     "deny": [
       "Bash(rm -rf /)",

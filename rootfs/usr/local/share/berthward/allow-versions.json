@@ -41,5 +41,7 @@
   "Bash(host apcaccess *)": 1,
   "Edit(//workspace/**)": 1,
   "Read(//host/boot/**)": 6,
-  "Bash(discord-send *)": 5
+  "Bash(discord-send *)": 5,
+  "Bash(ping *)": 9,
+  "Bash(host ping *)": 9
 }
