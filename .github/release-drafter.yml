@@ -2,6 +2,9 @@
 # The draft is updated on every push to main; publishing it creates the tag,
 # and the tag is what builds and publishes the image.
 
+# One line per pull request, naming its author only (not commit co-authors).
+change-template: "- #$NUMBER - $TITLE (@$AUTHOR)"
+
 name-template: "v$RESOLVED_VERSION"
 tag-template: "v$RESOLVED_VERSION"
 
