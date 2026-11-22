@@ -19,7 +19,10 @@ FROM node:26-bookworm-slim@sha256:5df79989ed685e09f0a98019db4cebfb22fb9df1a53c01
 # Bump this (and rebuild) to update Claude Code.
 ARG CLAUDE_CODE_VERSION=2.1.296
 
-RUN npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
+# --allow-scripts names the one package whose install script may run: the
+# postinstall above. Newer npm versions warn about install scripts that are not
+# allowed this way and are set to stop running them; older ones ignore the flag.
+RUN npm install -g --allow-scripts=@anthropic-ai/claude-code "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
     && cp -L "$(readlink -f /usr/local/bin/claude)" /claude \
     && chmod 0755 /claude \
     && /claude --version
