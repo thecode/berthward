@@ -34,17 +34,26 @@ things:
 
 ## 3. Install the container
 
-Berthward is not in Community Applications yet. Until it is, build the image
-on the server and add the template by hand: see
-[Building and Testing Locally](../README.md#building-and-testing-locally).
+Berthward is not in Community Applications yet. Until it is, add the template
+by hand, on the Unraid terminal:
+
+```bash
+wget -O /boot/config/plugins/dockerMan/templates-user/my-berthward.xml \
+  https://raw.githubusercontent.com/thecode/berthward/main/platforms/unraid/template.xml
+```
+
 Then Docker tab → **Add Container** → choose *berthward* under *User
-templates*.
+templates*. The template pulls the published image,
+`ghcr.io/thecode/berthward:beta`, and Unraid's update check and **Force
+Update** work as for any other container.
 
-Once it is published: **Apps** → search for *berthward* → **Install**.
+Once it is in Community Applications: **Apps** → search for *berthward* →
+**Install**.
 
-With a locally built image, Unraid's update check and **Force Update** have
-nothing to pull; to update, pull the source again and rebuild the image, then
-Apply the template once more.
+To build the image yourself instead, see
+[Building and Testing Locally](../README.md#building-and-testing-locally).
+With a locally built image there is nothing for Unraid to pull; to update,
+pull the source again, rebuild the image, and Apply the template once more.
 
 Unraid stores the template on the flash drive, as it does for every
 container. The bot token you enter is part of that template.

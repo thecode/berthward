@@ -5,10 +5,9 @@ Open work for this project. Delete an item once it's done. An item we decide not
 ## 1. Before a public release
 
 - Four releases are planned from one codebase: Unraid, TrueNAS, standalone Docker, and a Home Assistant app. Split what is Unraid-specific (the `host` helper's assumptions, the server scan, the allow list, the example tasks) into a platform profile. Packaging files already live per platform under `platforms/` (so far `platforms/unraid/template.xml`); the profiles and the other platforms' packaging go next to it.
-- Publishing. Done locally: the repository is named `berthward`, on branch `main`, and starts with a single first commit, so there is no development history or earlier project name to clean up. The README, template and image label already point at `github.com/thecode/berthward` and `ghcr.io/thecode/berthward`, neither of which exists yet. Still to do, in order:
-  - A last scan of the files for private text.
-  - Create the GitHub repository and push.
-  - Publish the image by pushing a version tag. The tag must contain `-beta` (for example `v0.1.0-beta.1`): only then does the workflow add the `beta` tag that the README and the template name. A plain `v0.1.0` would publish `0.1.0` and `latest` but no `beta`. A package first published from a private repository is private and has its own visibility switch.
+- Publishing. Done: the GitHub repository exists (private), and the image `ghcr.io/thecode/berthward` is published as `0.1.0-beta.1` and `beta` (package private). That image was pulled and run on a real server from the Unraid template. Still to do, in order:
+  - Make the repository and the package public. A public package cannot be made private again, only deleted.
+  - Protect `main`: no force pushes or deletion, and require the `test` and `build` checks.
   - Community Apps template and support thread.
 
 ## 2. Noted in the pre-release review, not done
@@ -25,6 +24,8 @@ None of these blocks a release. Each needs control of the container or its netwo
 ## Settled, for the record
 
 - Tried on a real server and working: the web terminal behind a real reverse proxy, `/login` with the automatic session restart, a first login on an empty data folder (the session leaves its welcome screen by itself), Discord-only mode, and password-only web sign-in.
+
+- Changes go in through pull requests, each with one label (`bugfix`, `new-feature`, `enhancement`, `documentation`, `ci`, `dependencies` and so on; a check refuses a pull request without one). Every merge updates a draft release whose notes are sorted by those labels. Publishing the draft creates the version tag, and the tag builds and publishes the image. While `prerelease-identifier: "beta"` is set in `.github/release-drafter.yml`, each draft is the next `-beta.N`; such a tag also moves the `beta` image tag that the template names.
 
 - The name is Berthward. It was checked against trademark registers, app stores, package registries and the web before it was chosen.
 

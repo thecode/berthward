@@ -22,9 +22,10 @@ Assistant are planned.
 > not for you. Read [Security Model](#security-model) and the
 > [Disclaimer](#disclaimer) before installing, and keep backups.
 
-**Status: beta, not yet published.** The image and the Community
-Applications entry do not exist yet; until they do, build the image yourself
-(see [Building and Testing Locally](#building-and-testing-locally)).
+**Status: beta.** The image is published as `ghcr.io/thecode/berthward:beta`.
+The Community Applications entry does not exist yet; until it does, add the
+template by hand (see
+[Install the container](docs/getting-started.md#3-install-the-container)).
 Berthward was developed and tried on two Unraid 7.4.1 servers with ZFS pools
 and a small XFS array. Not yet seen in action: larger arrays with parity,
 btrfs pools, systems without ZFS; the scanner has code paths for those that
