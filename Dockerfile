@@ -13,7 +13,7 @@ RUN bun install --frozen-lockfile --production
 # The npm package's postinstall copies the platform binary over bin/claude.exe;
 # `claude` then execs it directly and no Node.js process stays resident. Only
 # that one file is carried into the runtime image.
-FROM node:22-bookworm-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee AS build
+FROM node:26-bookworm-slim@sha256:5df79989ed685e09f0a98019db4cebfb22fb9df1a53c0161664a011f7ff6b0f1 AS build
 
 # Pin the Claude Code version so every image is reproducible.
 # Bump this (and rebuild) to update Claude Code.
