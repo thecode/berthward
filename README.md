@@ -449,6 +449,16 @@ of this tool.**
 
 ## Building and Testing Locally
 
+Where things are in this repository:
+
+| Path | What |
+|---|---|
+| `rootfs/` | Files the image adds, laid out as they sit in the container: helpers in `usr/local/bin`, shipped settings, the base `CLAUDE.md` and the example tasks in `usr/local/share/berthward` |
+| `bridge/` | The Discord bridge and the web terminal (Bun), with their tests |
+| `platforms/` | Packaging per platform; so far the Unraid template |
+| `tests/` | Tests for the scanner, the guard, the helpers and the settings merge |
+| `docs/` | The guides |
+
 The image is Debian slim plus the Claude Code native binary, the Docker CLI,
 tmux, git, ssh, ripgrep, jq, and Bun for the Discord bridge. Node.js is not
 included, so MCP servers that are started through `npx` do not work inside

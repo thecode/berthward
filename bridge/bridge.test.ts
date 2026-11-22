@@ -18,7 +18,9 @@ import {
 
 const here = import.meta.dir
 // The real script: next to the sources in the repository, on PATH in the image.
-const discordSend = existsSync(join(here, '..', 'discord-send')) ? join(here, '..', 'discord-send') : 'discord-send'
+// In the source tree the helper is under rootfs/; in the image it is on PATH.
+const sourceDiscordSend = join(here, '..', 'rootfs', 'usr', 'local', 'bin', 'discord-send')
+const discordSend = existsSync(sourceDiscordSend) ? sourceDiscordSend : 'discord-send'
 let dir: string
 let discord: FakeDiscord
 let bridge: ReturnType<typeof Bun.spawn>
