@@ -1,7 +1,10 @@
-# Bun runs the Discord bridge. Pinned like Claude Code; only the one binary and
-# the bridge's dependencies are carried into the runtime image.
-ARG BUN_VERSION=1.4.5
-FROM oven/bun:${BUN_VERSION}-slim AS bun
+# Every base image is pinned by tag and digest: the tag says which version it
+# is, the digest makes the build use exactly that image even if the tag is
+# moved. Dependabot proposes updates to both (see .github/dependabot.yml).
+
+# Bun runs the Discord bridge. Only the one binary and the bridge's
+# dependencies are carried into the runtime image.
+FROM oven/bun:1.4.5-slim@sha256:b780593f3e10918cbdaec3d5a08d52224b9198069a65eb47812085c2ec007643 AS bun
 WORKDIR /bridge
 COPY bridge/package.json bridge/bun.lock ./
 RUN bun install --frozen-lockfile --production
@@ -10,7 +13,7 @@ RUN bun install --frozen-lockfile --production
 # The npm package's postinstall copies the platform binary over bin/claude.exe;
 # `claude` then execs it directly and no Node.js process stays resident. Only
 # that one file is carried into the runtime image.
-FROM node:22-bookworm-slim AS build
+FROM node:22-bookworm-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee AS build
 
 # Pin the Claude Code version so every image is reproducible.
 # Bump this (and rebuild) to update Claude Code.
@@ -21,11 +24,16 @@ RUN npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
     && chmod 0755 /claude \
     && /claude --version
 
+# ── Docker CLI ───────────────────────────────────────────────────────────────
+# A stage of its own so that the image it comes from is pinned and updated
+# like the others. Only the client binary is copied out of it.
+FROM docker:28-cli@sha256:625d9431a9f54c5a2bc90f24f0e1c3d55b1349fd857dd85035f98c2c9acbdd4d AS dockercli
+
 # ── runtime ──────────────────────────────────────────────────────────────────
 # No Node.js in the runtime image: Claude Code runs natively. MCP servers that
 # are started through `npx` therefore do not work inside this container; Bun is
 # present for the Discord bridge.
-FROM debian:bookworm-slim AS runtime
+FROM debian:bookworm-slim@sha256:734a72b3d6142a71993b4bc580ca01d8ca687f77a2c422d96a961d3376b179bc AS runtime
 
 COPY --from=build /claude /usr/local/bin/claude
 COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
@@ -35,7 +43,7 @@ COPY --from=bun /bridge/node_modules /usr/local/lib/berthward/bridge/node_module
 COPY bridge/bridge.ts bridge/lib.ts bridge/tasks.ts bridge/web.ts bridge/web-only.ts bridge/permission-mcp.ts bridge/package.json bridge/bun.lock /usr/local/lib/berthward/bridge/
 
 # Docker CLI only (Debian's docker.io would pull in dockerd, containerd, runc).
-COPY --from=docker:28-cli /usr/local/bin/docker /usr/local/bin/docker
+COPY --from=dockercli /usr/local/bin/docker /usr/local/bin/docker
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       tini tmux git curl ca-certificates openssh-client \

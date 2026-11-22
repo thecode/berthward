@@ -5,3 +5,8 @@ updates:
     directory: /
     schedule:
       interval: weekly
+  # Keeps the tag-and-digest pins of the Dockerfile's base images current.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly

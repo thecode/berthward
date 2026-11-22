@@ -35,7 +35,7 @@ import {
   type Interaction,
   type Message,
 } from 'discord.js'
-import { createHash, randomUUID } from 'node:crypto'
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join, sep } from 'node:path'
 import {
@@ -54,7 +54,7 @@ import {
   safeFileName,
 } from './lib'
 import { Tasks } from './tasks'
-import { startWeb, type SignInInfo } from './web'
+import { startWeb, type SignInAnswer, type SignInInfo } from './web'
 
 const TOKEN = process.env.DISCORD_BOT_TOKEN
 const STATE_DIR = process.env.BRIDGE_STATE_DIR ?? join(process.env.HOME ?? '/root', '.claude', 'bridge')
@@ -192,9 +192,9 @@ const tasks = new Tasks({
 
 // ── Web terminal sign-in ─────────────────────────────────────────────────────
 const WEB_APPROVAL_MS = 2 * 60_000
-const webPending = new Map<string, { resolve: (ok: boolean) => void; message: Message | null; text: string }>()
+const webPending = new Map<string, { resolve: (answer: SignInAnswer) => void; message: Message | null; text: string }>()
 
-async function approveWebSignIn(info: SignInInfo): Promise<boolean> {
+async function approveWebSignIn(info: SignInInfo): Promise<SignInAnswer> {
   const id = randomUUID()
   const text =
     '🌐 **Web terminal sign-in**\n' +
@@ -203,32 +203,35 @@ async function approveWebSignIn(info: SignInInfo): Promise<boolean> {
     (info.location ? `Location (approximate): ${info.location}\n` : '') +
     `Browser: ${info.browser}\n` +
     (info.via ? `Page opened at: \`${info.via}\`\n` : '') +
+    (info.viaUnfamiliar
+      ? '⚠️ That is a public host name. Deny unless it is the address you use for this page. To accept only your own names, set **Web Terminal Host Names**.\n'
+      : '') +
     `Time: <t:${Math.floor(Date.now() / 1000)}:T>\n` +
     'Allow only if you just opened the page yourself and the code matches.'
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId(`web:allow:${id}`).setLabel('Allow').setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId(`web:deny:${id}`).setLabel('Deny').setStyle(ButtonStyle.Danger),
   )
-  return new Promise<boolean>(resolve => {
+  return new Promise<SignInAnswer>(resolve => {
     const entry = {
       message: null as Message | null,
       text,
-      resolve: (ok: boolean) => {
+      resolve: (answer: SignInAnswer) => {
         clearTimeout(timer)
-        resolve(ok)
+        resolve(answer)
       },
     }
     const timer = setTimeout(() => {
       if (!webPending.delete(id)) return
       void entry.message?.edit({ content: `${text}\n⌛ No answer in time: denied.`, components: [] }).catch(() => {})
-      resolve(false)
+      resolve('expired')
     }, WEB_APPROVAL_MS)
     // Registered before the request is posted: a click can arrive before the
     // call that posts it has returned.
     webPending.set(id, entry)
     void postAlert(text, { components: [row] }).then(message => {
       if (message) entry.message = message
-      else if (webPending.delete(id)) entry.resolve(false) // could not be shown
+      else if (webPending.delete(id)) entry.resolve('denied') // could not be shown
     })
   })
 }
@@ -422,7 +425,7 @@ async function onButton(i: ButtonInteraction): Promise<void> {
     await i
       .update({ content: `${w.text}\n${ok ? '✅ Allowed' : '❌ Denied'} by ${whoClicked(i)}.`, components: [] })
       .catch(() => {})
-    w.resolve(ok)
+    w.resolve(ok ? 'allowed' : 'denied')
     return
   }
   if (kind === 'task') {
@@ -444,19 +447,36 @@ async function onButton(i: ButtonInteraction): Promise<void> {
   }
 }
 
-// Local endpoint for permission-mcp. Reachable only inside this container.
-// A request here can only put a question to the user; the decision always
-// comes from a button click by an allowed user.
+// Local endpoint for permission-mcp and discord-send. Reachable only inside
+// this container. A request here can only put a question to the user or send
+// them a file; the decision always comes from a button click by an allowed
+// user.
+//
+// Every run gets a token of its own in its environment, next to BRIDGE_URL.
+// A request must carry the token of the run that is being answered, and it
+// acts on that run's chat, whatever it says itself. So other processes in the
+// container (the interactive session, a task script, an earlier run's
+// leftovers) cannot post requests or files. Root in the container can still
+// read a running job's environment: this narrows who can ask, it is not a
+// boundary.
+function sameToken(given: string, expected: string): boolean {
+  const a = Buffer.from(given)
+  const b = Buffer.from(expected)
+  return a.length === b.length && timingSafeEqual(a, b)
+}
 const server = Bun.serve({
   hostname: '127.0.0.1',
   port: 0,
   idleTimeout: 60, // a /wait answers within 25 s
   async fetch(req) {
     const url = new URL(req.url)
+    const run = running
+    if (!run || !sameToken(req.headers.get('x-bridge-token') ?? '', run.token)) {
+      return new Response('no run is being answered with this token', { status: 403 })
+    }
+    const chat = run.chat
     if (req.method === 'POST' && url.pathname === '/approve') {
       const body = (await req.json().catch(() => null)) as any
-      const chat = typeof body?.chat === 'string' ? body.chat : ''
-      if (!running || running.chat !== chat) return new Response('no run for this chat', { status: 409 })
       const id = await requestApproval(chat, String(body?.tool_name ?? 'tool'), body?.input ?? {})
       return Response.json({ id })
     }
@@ -476,7 +496,7 @@ const server = Bun.serve({
     }
     if (req.method === 'POST' && url.pathname === '/send-file') {
       const body = (await req.json().catch(() => null)) as any
-      const error = await sendFile(String(body?.chat ?? ''), String(body?.path ?? ''), String(body?.caption ?? ''))
+      const error = await sendFile(chat, String(body?.path ?? ''), String(body?.caption ?? ''))
       return Response.json(error ? { ok: false, error } : { ok: true })
     }
     return new Response('not found', { status: 404 })
@@ -584,6 +604,8 @@ let running: {
   chat: string
   proc: ReturnType<typeof Bun.spawn>
   stopped: boolean
+  /** What this run's requests to the local endpoint must carry. */
+  token: string
   /** /new arrived while this job ran: its conversation must not be kept. */
   forgotten?: boolean
 } | null = null
@@ -598,9 +620,10 @@ function denyPendingFor(chat: string, why: string): void {
 async function runClaude(job: Job, fresh: boolean): Promise<boolean> {
   const existing = fresh ? undefined : state.sessions[job.chat]
   const sessionId = existing ?? randomUUID()
+  const token = randomBytes(24).toString('base64url')
   const mcpConfig = JSON.stringify({
     mcpServers: {
-      bridge: { command: 'bun', args: [PERMISSION_MCP], env: { BRIDGE_URL, BRIDGE_CHAT: job.chat } },
+      bridge: { command: 'bun', args: [PERMISSION_MCP], env: { BRIDGE_URL, BRIDGE_CHAT: job.chat, BRIDGE_TOKEN: token } },
     },
   })
   const args = [
@@ -619,10 +642,10 @@ async function runClaude(job: Job, fresh: boolean): Promise<boolean> {
     stdout: 'pipe',
     stderr: 'pipe',
     // A human may take minutes to answer; the call must stay in the foreground.
-    // BRIDGE_URL and BRIDGE_CHAT are for discord-send.
-    env: { ...process.env, CLAUDE_CODE_MCP_AUTO_BACKGROUND_MS: '0', BRIDGE_URL, BRIDGE_CHAT: job.chat },
+    // BRIDGE_URL, BRIDGE_CHAT and BRIDGE_TOKEN are for discord-send.
+    env: { ...process.env, CLAUDE_CODE_MCP_AUTO_BACKGROUND_MS: '0', BRIDGE_URL, BRIDGE_CHAT: job.chat, BRIDGE_TOKEN: token },
   })
-  running = { chat: job.chat, proc, stopped: false }
+  running = { chat: job.chat, proc, stopped: false, token }
   // A job that never ends would block the chat's queue for good.
   let timedOut = false
   const limit =
@@ -1085,6 +1108,7 @@ client.once(Events.ClientReady, c => {
         approve: approveWebSignIn,
         trustProxy: /^(true|1|yes)$/i.test(process.env.WEB_TRUST_PROXY ?? ''),
         geoLookup: /^(true|1|yes)$/i.test(process.env.WEB_GEO_LOOKUP ?? ''),
+        allowedHosts: (process.env.WEB_ALLOWED_HOSTS ?? '').split(/[\s,]+/).filter(Boolean),
       })
     } catch (e) {
       log(`web: could not start: ${e instanceof Error ? e.message : e}`)

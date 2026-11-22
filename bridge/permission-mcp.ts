@@ -11,6 +11,8 @@ import { createInterface } from 'node:readline'
 
 const BRIDGE_URL = process.env.BRIDGE_URL ?? ''
 const BRIDGE_CHAT = process.env.BRIDGE_CHAT ?? ''
+// Proves to the bridge that the request comes from the run it is answering.
+const TOKEN = { 'x-bridge-token': process.env.BRIDGE_TOKEN ?? '' }
 
 const TOOL = {
   name: 'approve',
@@ -39,7 +41,7 @@ async function ask(args: any): Promise<unknown> {
   try {
     const res = await fetch(`${BRIDGE_URL}/approve`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', ...TOKEN },
       body: JSON.stringify({ chat: BRIDGE_CHAT, tool_name: args?.tool_name, input: args?.input ?? {} }),
     })
     if (!res.ok) return deny(`The Discord bridge refused the request (${res.status}).`)
@@ -47,7 +49,7 @@ async function ask(args: any): Promise<unknown> {
     // The bridge answers each wait within about 25 s ("pending" until the user
     // decides or the request times out), so no single request stays open long.
     for (;;) {
-      const w = await fetch(`${BRIDGE_URL}/wait?id=${encodeURIComponent(id)}`)
+      const w = await fetch(`${BRIDGE_URL}/wait?id=${encodeURIComponent(id)}`, { headers: TOKEN })
       if (!w.ok) return deny('The Discord bridge lost this request.')
       const body = (await w.json()) as { pending?: boolean; decision?: unknown }
       if (!body.pending) return body.decision ?? deny('The Discord bridge gave no decision.')

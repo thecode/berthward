@@ -10,22 +10,19 @@ Open work for this project. Delete an item once it's done. An item we decide not
   - Protect `main`: no force pushes or deletion, and require the `test` and `build` checks.
   - Community Apps template and support thread.
 
-## 2. Noted in the pre-release review, not done
-
-None of these blocks a release. Each needs control of the container or its network, or is small.
-
-- The web terminal checks that a request's Origin matches its Host, but has no list of allowed host names, so a DNS-rebinding page passes that check. It still needs the owner's Allow or the password.
-- A web sign-in that nobody answers is shown in the browser as denied; the page has a separate "not answered in time" text that is never used.
-- `CLAUDE.md` is built from names on the host (containers, VMs, shares, User Script names and descriptions) without escaping. Whoever can set those writes into the file Claude treats as rules.
-- The bridge's local endpoints (127.0.0.1, random port) take requests from any process in the container.
-- The bot token and web password are removed from the environment Claude inherits, but stay readable for root in `/proc` of the container's first processes.
-- Base images in the Dockerfile are pinned by tag, not by digest.
-
 ## Settled, for the record
 
 - Tried on a real server and working: the web terminal behind a real reverse proxy, `/login` with the automatic session restart, a first login on an empty data folder (the session leaves its welcome screen by itself), Discord-only mode, and password-only web sign-in.
 
 - Changes go in through pull requests, each with one label (`bugfix`, `new-feature`, `enhancement`, `documentation`, `ci`, `dependencies` and so on; a check refuses a pull request without one). Every merge updates a draft release whose notes are sorted by those labels. Publishing the draft creates the version tag, and the tag builds and publishes the image. While `prerelease-identifier: "beta"` is set in `.github/release-drafter.yml`, each draft is the next `-beta.N`; such a tag also moves the `beta` image tag that the template names.
+
+- The six notes from the pre-release review are done. What each one leaves, by design:
+  - Web terminal host names: with **Web Terminal Host Names** set, any other host name is refused. It is off by default so that existing set-ups keep working; without it a sign-in request under a public name is marked on Discord.
+  - An unanswered web sign-in now says "not answered in time" in the browser.
+  - `CLAUDE.md`: names from the host can no longer change the file's structure (no control characters, backticks or angle brackets), and the generated section says they are data. What a name says cannot be filtered; the note is the defence.
+  - The bridge's local endpoints need the token of the run being answered and act on that run's chat only. Root in the container can read a running job's environment, so this narrows who can ask; it is not a boundary.
+  - The bot token and web password are part of the container's configuration, so they cannot be taken out of `/proc` (anything `docker exec` starts gets them again). Reading a process environment now asks first, like `docker inspect` and the saved template already did.
+  - Base images are pinned by tag and digest, and Dependabot proposes their updates.
 
 - The name is Berthward. It was checked against trademark registers, app stores, package registries and the web before it was chosen.
 

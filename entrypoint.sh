@@ -29,7 +29,7 @@ ALLOW_VERSIONS=/usr/local/share/berthward/allow-versions.json
 # keeps its stamp.
 OLD_STAMP=/root/.claude/.claude-unraid-manager-settings-version
 if [ -f "$OLD_STAMP" ] && [ ! -f "$SETTINGS_STAMP" ]; then mv "$OLD_STAMP" "$SETTINGS_STAMP"; fi
-SETTINGS_VERSION=7   # bump whenever settings.json gains keys existing installs should receive
+SETTINGS_VERSION=8   # bump whenever settings.json gains keys existing installs should receive
 mkdir -p /root/.claude
 stamp=$(cat "$SETTINGS_STAMP" 2>/dev/null || true)
 case "$stamp" in ''|*[!0-9]*) stamp=0 ;; esac
@@ -104,9 +104,11 @@ fi
 # the interactive session: messages from Discord start headless Claude runs,
 # and their permission prompts are answered with buttons on Discord. The token
 # is dropped from the environment afterwards, so the interactive session and
-# the commands it runs do not inherit it. (It stays readable for root inside
-# the container, in the template on the flash drive and in /proc of the first
-# processes; reading either asks the user first.)
+# the commands it runs do not inherit it. It cannot be taken out of the
+# container altogether: it is part of the container's configuration, so it
+# stays in the template on the flash drive, in `docker inspect`, in /proc of
+# the first processes and in the environment of anything `docker exec` starts.
+# Reading any of those asks the user first (settings.json, claude-guard).
 DISCORD=off
 BRIDGE_PID=
 WEB_PID=
