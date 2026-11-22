@@ -26,8 +26,7 @@ Assistant are planned.
 > [Disclaimer](#disclaimer) before installing, and keep backups.
 
 **Status: beta.** The image is published as `ghcr.io/thecode/berthward:beta`.
-The Community Applications entry does not exist yet; until it does, add the
-template by hand (see
+Install it from Unraid's **Apps** tab: search for *berthward* (see
 [Install the container](docs/getting-started.md#3-install-the-container)).
 Berthward was developed and tried on two Unraid 7.4.1 servers with ZFS pools
 and a small XFS array. Not yet seen in action: larger arrays with parity,
