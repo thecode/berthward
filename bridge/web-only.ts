@@ -30,6 +30,7 @@ try {
     ttlHours: parseSessionHours(process.env.WEB_SESSION_HOURS),
     log,
     trustProxy: flag('WEB_TRUST_PROXY'),
+    allowedHosts: (process.env.WEB_ALLOWED_HOSTS ?? '').split(/[\s,]+/).filter(Boolean),
   })
 } catch (e) {
   log(`could not start: ${e instanceof Error ? e.message : e}`)

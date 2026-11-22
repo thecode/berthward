@@ -28,6 +28,7 @@ const record = (extra: object) => {
       sawWebPassword: 'WEB_PASSWORD' in process.env,
       cwd: process.cwd(),
       bridgeChat: process.env.BRIDGE_CHAT ?? null,
+      bridgeUrl: process.env.BRIDGE_URL ?? null,
       ...extra,
     }) + '\n',
   )
@@ -103,13 +104,13 @@ if (said.includes('send me')) {
   const cfg = JSON.parse(opt('--mcp-config') ?? '{}').mcpServers?.bridge?.env ?? {}
   const res = await fetch(`${cfg.BRIDGE_URL}/approve`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', 'x-bridge-token': cfg.BRIDGE_TOKEN ?? '' },
     body: JSON.stringify({ chat: cfg.BRIDGE_CHAT, tool_name: 'Bash', input: { command: said.includes('long command') ? `echo ${'x'.repeat(3000)} && touch /tmp/end-marker` : 'touch /tmp/needs-permission' } }),
   })
   const { id } = (await res.json()) as { id: string }
   let decision: any
   for (;;) {
-    const w = (await (await fetch(`${cfg.BRIDGE_URL}/wait?id=${id}`)).json()) as any
+    const w = (await (await fetch(`${cfg.BRIDGE_URL}/wait?id=${id}`, { headers: { 'x-bridge-token': cfg.BRIDGE_TOKEN ?? '' } })).json()) as any
     if (!w.pending) {
       decision = w.decision
       break

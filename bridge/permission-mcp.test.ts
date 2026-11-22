@@ -8,7 +8,7 @@ const script = join(import.meta.dir, 'permission-mcp.ts')
 
 function start(bridgeUrl: string) {
   const proc = Bun.spawn(['bun', script], {
-    env: { ...process.env, BRIDGE_URL: bridgeUrl, BRIDGE_CHAT: 'chat-1' },
+    env: { ...process.env, BRIDGE_URL: bridgeUrl, BRIDGE_CHAT: 'chat-1', BRIDGE_TOKEN: 'token-1' },
     stdin: 'pipe',
     stdout: 'pipe',
     stderr: 'ignore',
@@ -49,6 +49,7 @@ function fakeBridge(decision: object) {
     port: 0,
     async fetch(req) {
       const url = new URL(req.url)
+      if (req.headers.get('x-bridge-token') !== 'token-1') return new Response('no token', { status: 403 })
       if (url.pathname === '/approve') {
         seen.push(await req.json())
         return Response.json({ id: 'req-1' })

@@ -120,7 +120,15 @@ DOCKER_HOSTY="(--privileged|--pid[= ]host|--net(work)?[= ]host|--ipc[= ]host|--u
 # read-write; a false positive there costs one extra prompt. A command that
 # starts a container binding /boot is covered by the host-level-access rule.
 FLASH_TOUCH="(>>?[[:space:]]*${Q}${FLASH}|${B}${WRITE_VERBS}[[:space:]]+[^;&|]*${Q}${FLASH}|${B}plugin[[:space:]]+(install|remove|update)${T})"
+# The environment the container was started with holds the bot token and the
+# web password. Claude's own runs do not inherit them, but they stay readable
+# in /proc for the container's first processes and for everything started by
+# `docker exec`. /proc/self and /proc/$$ are the command's own, clean
+# environment and stay silent. `ps` prints environments only with the BSD
+# option "e" (no dash); `ps -e` lists all processes and stays silent.
+PROC_ENV="(/proc/([0-9]+|\*|[^[:space:]\"'/]*[\$\[?{][^[:space:]\"'/]*)(/task/[^[:space:]\"'/]+)?/environ|${B}ps[[:space:]]+[a-zA-Z]*e[a-zA-Z]*${T})"
 ask_rules=(
+  "reads the environment of other processes (the container's own holds the bot token)|${PROC_ENV}"
   "downloads and runs code from the network|((curl|wget)[^|;&]*\|[[:space:]]*(sudo[[:space:]]+)?${SH}${T}|${SH}[[:space:]]+-c[[:space:]]+${Q}\\\$\((curl|wget)|<\((curl|wget))"
   "decodes and runs hidden code|base64[[:space:]]+(-d|--decode)[^|;&]*\|[[:space:]]*(sudo[[:space:]]+)?${SH}${T}"
   "reaches the network (possible data exfiltration)|(${NET_CALL}|${B}${RSYNC_REMOTE})"

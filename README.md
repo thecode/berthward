@@ -401,6 +401,7 @@ Every setting is a field in the template. Paths first, then variables.
 | Web Terminal Password | `WEB_PASSWORD` | *(empty)* | Optional with Discord; required (12 characters or more) without |
 | Web Terminal Stay Signed In (hours) | `WEB_SESSION_HOURS` | `12` | `0` = sign in on every visit; at most 168 |
 | Web Terminal Behind Proxy | `WEB_TRUST_PROXY` | `false` | Trust a reverse proxy's forwarded address. Only when nothing else reaches the port |
+| Web Terminal Host Names | `WEB_ALLOWED_HOSTS` | empty | Host names the page may be opened under, comma-separated. With a list, any other name is refused (plain addresses always work) |
 | Web Terminal Location Lookup | `WEB_GEO_LOOKUP` | `false` | Show an approximate location in sign-in requests (asks ipapi.co) |
 | Interactive Session | `INTERACTIVE_SESSION` | `true` | `false` = Discord only: no terminal, web terminal or Claude app |
 | Resume Conversation | `CONTINUE` | `true` | Resume the last interactive conversation on start |

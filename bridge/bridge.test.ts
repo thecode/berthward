@@ -447,6 +447,22 @@ describe('files', () => {
     expect(r.exitCode).toBe(2)
     expect(r.stderr.toString()).toContain('only works while answering a message from Discord')
   })
+
+  test('the local endpoint refuses a request without the token of the running job', async () => {
+    const url = claudeCalls().map(c => c.bridgeUrl).find(Boolean)
+    expect(url).toBeTruthy()
+    const uploads = () => discord.messages.filter(m => m.author_id === BOT_ID && m.files.length > 0).length
+    const before = uploads()
+    for (const token of ['', 'made-up']) {
+      const res = await fetch(`${url}/send-file`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-bridge-token': token },
+        body: JSON.stringify({ chat: CHANNEL_ID, path: '/etc/hostname' }),
+      })
+      expect(res.status).toBe(403)
+    }
+    expect(uploads()).toBe(before)
+  })
 })
 
 describe('web terminal sign-in, approved on Discord', () => {

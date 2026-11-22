@@ -3,7 +3,7 @@
 # being answered.
 #
 # For Claude, during a conversation that came in through the Discord bridge:
-# the bridge sets BRIDGE_URL and BRIDGE_CHAT for that run. The bridge decides
+# the bridge sets BRIDGE_URL, BRIDGE_CHAT and BRIDGE_TOKEN for that run. The bridge decides
 # whether the file goes out: it must be a regular file inside the working
 # folder and not larger than Discord accepts. Anything else is refused with a
 # reason, which this command prints.
@@ -27,7 +27,7 @@ caption="$*"
 
 if ! response=$(jq -n --arg chat "$BRIDGE_CHAT" --arg path "$file" --arg caption "$caption" \
       '{chat: $chat, path: $path, caption: $caption}' \
-    | curl -sS -m 120 -H 'content-type: application/json' --data-binary @- "$BRIDGE_URL/send-file" 2>&1); then
+    | curl -sS -m 120 -H 'content-type: application/json' -H "x-bridge-token: ${BRIDGE_TOKEN:-}" --data-binary @- "$BRIDGE_URL/send-file" 2>&1); then
   echo "not sent: the bridge could not be reached ($response)" >&2
   exit 1
 fi

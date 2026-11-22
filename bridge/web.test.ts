@@ -3,9 +3,9 @@
 // answers with a fixed verdict. No tmux session exists, so the terminal
 // itself is only tested up to "no session".
 import { describe, expect, test } from 'bun:test'
-import { startWeb, type SignInInfo, type WebHost } from './web'
+import { hostName, localName, startWeb, type SignInAnswer, type SignInInfo, type WebHost } from './web'
 
-function serve(over: Partial<WebHost> = {}, verdict = true) {
+function serve(over: Partial<WebHost> = {}, verdict: boolean | SignInAnswer = true) {
   const logs: string[] = []
   const asked: SignInInfo[] = []
   const host: WebHost = {
@@ -16,7 +16,7 @@ function serve(over: Partial<WebHost> = {}, verdict = true) {
     log: m => logs.push(m),
     approve: async info => {
       asked.push(info)
-      return verdict
+      return verdict === true ? 'allowed' : verdict === false ? 'denied' : verdict
     },
     ...over,
   }
@@ -222,6 +222,51 @@ describe('behind a reverse proxy', () => {
     expect((await t.login({}, forwarded)).status).toBe(400)
     await t.login({}, { 'x-forwarded-for': '203.0.113.9' })
     expect(t.asked[0].ip).not.toBe('203.0.113.9')
+    t.srv.stop(true)
+  })
+})
+
+describe('host names', () => {
+  test('which names count as local', () => {
+    expect(hostName('NAS.Home.Arpa:7682')).toBe('nas.home.arpa')
+    expect(hostName('[fe80::1]:7682')).toBe('fe80::1')
+    for (const name of ['192.168.1.5', 'localhost', 'nas', 'nas.local', 'nas.home.arpa', 'fe80::1']) {
+      expect(localName(name)).toBe(true)
+    }
+    for (const name of ['evil.example', 'claude.example.com', '']) expect(localName(name)).toBe(false)
+  })
+
+  test('without a list, a public name is served and flagged in the request', async () => {
+    const t = serve()
+    const plain = (await (await t.login()).json()) as { id: string }
+    await t.settle(plain.id)
+    expect(t.asked[0].viaUnfamiliar).toBe(false)
+    const other = 'http://rebind.example.com:7682'
+    const res = await t.login({}, { host: 'rebind.example.com:7682', origin: other, 'x-test': '1' })
+    expect(res.status).toBe(200)
+    expect(t.asked[1].viaUnfamiliar).toBe(true)
+    t.srv.stop(true)
+  })
+
+  test('with a list, only listed names and plain addresses are served', async () => {
+    const t = serve({ allowedHosts: ['Claude.Example.com'] })
+    expect((await fetch(t.base + '/')).status).toBe(200) // by address
+    const listed = await fetch(t.base + '/', { headers: { host: 'claude.example.com:7682' } })
+    expect(listed.status).toBe(200)
+    const refused = await t.login({}, { host: 'rebind.example.net:7682', origin: 'http://rebind.example.net:7682' })
+    expect(refused.status).toBe(403)
+    expect(await refused.text()).toContain('Web Terminal Host Names')
+    expect(t.asked.length).toBe(0)
+    expect(t.logs.some(l => l.includes('refused a request for host name "rebind.example.net"'))).toBe(true)
+    t.srv.stop(true)
+  })
+})
+
+describe('a request nobody answers', () => {
+  test('the browser is told it was not answered, not that it was denied', async () => {
+    const t = serve({}, 'expired')
+    const { id } = (await (await t.login()).json()) as { id: string }
+    expect((await t.settle(id)).status).toBe('expired')
     t.srv.stop(true)
   })
 })

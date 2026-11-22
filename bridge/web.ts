@@ -29,6 +29,11 @@ export interface SignInInfo {
   browser: string
   /** The address the browser used to reach this page. */
   via: string
+  /**
+   * The page was opened under a public-looking host name and no list of host
+   * names is set: worth a second look before allowing.
+   */
+  viaUnfamiliar: boolean
   /** "City, Country (network)" for a public address, when the lookup is on. */
   location: string
 }
@@ -65,6 +70,36 @@ async function reverseName(ip: string): Promise<string> {
   }
 }
 
+/** How a sign-in request ended. "expired" = nobody answered in time. */
+export type SignInAnswer = 'allowed' | 'denied' | 'expired'
+
+/** The name in a Host header: lower case, without port, brackets or final dot. */
+export function hostName(header: string): string {
+  const h = header.trim().toLowerCase()
+  if (h.startsWith('[')) return h.slice(1).split(']')[0]
+  return h.replace(/:\d+$/, '').replace(/\.$/, '')
+}
+
+/** An IP address (v4 or v6) or localhost: never a name somebody else controls. */
+function isAddress(name: string): boolean {
+  return name === 'localhost' || /^\d{1,3}(\.\d{1,3}){3}$/.test(name) || name.includes(':')
+}
+
+// Suffixes that are not sold as public domains, so no outside party can make a
+// name under them point at this server.
+const LOCAL_SUFFIXES = ['.local', '.lan', '.home', '.internal', '.home.arpa', '.localdomain', '.localhost']
+
+/**
+ * A name that cannot be used for DNS rebinding: an address, a bare name
+ * ("nas"), or a name under a private-use suffix. Rebinding needs a public
+ * domain that the attacker controls and points at this server's address.
+ */
+export function localName(name: string): boolean {
+  if (name === '') return false
+  if (isAddress(name) || !name.includes('.')) return true
+  return LOCAL_SUFFIXES.some(suffix => name.endsWith(suffix))
+}
+
 export interface WebHost {
   port: number
   /** Empty = no password step. */
@@ -75,10 +110,17 @@ export interface WebHost {
   ttlHours: number
   log(msg: string): void
   /**
-   * Asks on Discord. Resolves true only when an allowed user clicked Allow.
+   * Asks on Discord. Resolves "allowed" only when an allowed user clicked Allow.
    * Absent = password-only mode: the password alone signs a browser in.
    */
-  approve?: (info: SignInInfo) => Promise<boolean>
+  approve?: (info: SignInInfo) => Promise<SignInAnswer>
+  /**
+   * Host names the page may be opened under, besides plain addresses. Empty =
+   * any name is served, and a public-looking one is flagged in the sign-in
+   * request. With a list, a request under any other name is refused, which
+   * closes DNS rebinding.
+   */
+  allowedHosts?: string[]
   /**
    * A reverse proxy is in front: take the browser's address, host and scheme
    * from its X-Forwarded-* headers. Only safe when nothing else can reach
@@ -227,6 +269,9 @@ export function startWeb(host: WebHost) {
   const sessions = new Map<string, Session>() // cookie value → session
   const logins = new Map<string, PendingLogin>()
   let recent: Array<{ at: number; ip: string }> = []
+  const allowedHosts = new Set((host.allowedHosts ?? []).map(hostName).filter(Boolean))
+  /** Refused names already written to the log, so a scanner cannot flood it. */
+  const refusedNames = new Set<string>()
 
   const headers = (type: string, extra: Record<string, string> = {}) => ({
     'content-type': `${type}; charset=utf-8`,
@@ -320,6 +365,18 @@ export function startWeb(host: WebHost) {
     async fetch(req, srv) {
       const url = new URL(req.url)
       const ip = addressOf(req, srv.requestIP(req)?.address ?? 'unknown')
+      const name = hostName(hostOf(req))
+      if (allowedHosts.size > 0 && !allowedHosts.has(name) && !isAddress(name)) {
+        const shown = name.replace(/[^a-z0-9.-]/g, '').slice(0, 80)
+        if (refusedNames.size < 20 && !refusedNames.has(shown)) {
+          refusedNames.add(shown)
+          host.log(`web: refused a request for host name "${shown}" from ${ip}: it is not in Web Terminal Host Names`)
+        }
+        return new Response(
+          'This page was opened under a host name that is not on its list. Add the name to "Web Terminal Host Names" in the container template, or open the page by its address.',
+          { status: 403, headers: headers('text/plain') },
+        )
+      }
 
       const asset = ASSETS[url.pathname]
       if (asset?.file) return new Response(Bun.file(asset.file), { headers: headers(asset.type) })
@@ -406,12 +463,13 @@ ${
           browser: describeAgent(req.headers.get('user-agent') ?? ''),
           via: hostOf(req).replace(/[^A-Za-z0-9.:\[\]-]/g, '').slice(0, 80),
           location: '',
+          viaUnfamiliar: allowedHosts.size === 0 && !localName(name),
         }
         if (host.geoLookup && info.where === 'public internet') info.location = await lookupLocation(ip)
         host.log(`web: sign-in request from ${ip}${info.hostname ? ` (${info.hostname})` : ''}, ${info.browser}`)
         void host.approve!(info)
-          .then(ok => {
-            login.status = ok ? 'allowed' : 'denied'
+          .then(answer => {
+            login.status = answer
           })
           .catch(() => {
             login.status = 'denied'
