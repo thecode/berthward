@@ -2,19 +2,26 @@
 
 Open work for this project. Delete an item once it's done. An item we decide not to do moves to **Dropped** at the end: kept so it can be picked up again, but not something that has to be finished.
 
-## 1. Before a public release
+## 1. Open
 
-- Four releases are planned from one codebase: Unraid, TrueNAS, standalone Docker, and a Home Assistant app. Split what is Unraid-specific (the `host` helper's assumptions, the server scan, the allow list, the example tasks) into a platform profile. Packaging files already live per platform under `platforms/` (so far `platforms/unraid/template.xml`); the profiles and the other platforms' packaging go next to it.
-- Publishing. Done: the GitHub repository exists (private), and the image `ghcr.io/thecode/berthward` is published as `0.1.0-beta.1` and `beta` (package private). That image was pulled and run on a real server from the Unraid template. Still to do, in order:
-  - Make the repository and the package public. A public package cannot be made private again, only deleted.
-  - Protect `main`: no force pushes or deletion, and require the `test` and `build` checks.
-  - Community Apps: copy `platforms/unraid/template.xml` to `templates/berthward.xml` in `thecode/unraid-docker-templates`, which Community Applications already reads. Only after the image is public, or the listing cannot be installed. A forum support thread is optional; the template's support link goes to the GitHub issues.
+- **Community Applications listing.** The template was pushed to `thecode/unraid-docker-templates` on 2026-11-22; the listing itself has not been seen yet. Once *berthward* shows up under Apps, change the README and `docs/getting-started.md`, which still say the entry does not exist and describe the install by hand first. If it does not show up, Apps → Statistics → Template Errors or Invalid Templates says why.
+- **Other platforms.** Four releases are planned from one codebase: Unraid (out), TrueNAS, standalone Docker, and a Home Assistant app. Split what is Unraid-specific (the `host` helper's assumptions, the server scan, the allow list, the example tasks) into a platform profile. Packaging files already live per platform under `platforms/` (so far `platforms/unraid/template.xml`); the profiles and the other platforms' packaging go next to it.
+- **Dependabot: Node 22 to 26** for the build stage that fetches Claude Code. A major jump: check that the Claude Code package installs and runs its post-install step on it before merging.
+- **A forum support thread** (optional). The template's support link goes to the GitHub issues; if a thread is opened, point `Support` at it.
 
 ## Settled, for the record
 
 - Tried on a real server and working: the web terminal behind a real reverse proxy, `/login` with the automatic session restart, a first login on an empty data folder (the session leaves its welcome screen by itself), Discord-only mode, and password-only web sign-in.
 
 - Changes go in through pull requests, each with one label (`bugfix`, `new-feature`, `enhancement`, `documentation`, `ci`, `dependencies` and so on; a check refuses a pull request without one). Every merge updates a draft release whose notes are sorted by those labels. Publishing the draft creates the version tag, and the tag builds and publishes the image. While `prerelease-identifier: "beta"` is set in `.github/release-drafter.yml`, each draft is the next `-beta.N`; such a tag also moves the `beta` image tag that the template names.
+
+- Published on 2026-11-22: the repository and the image `ghcr.io/thecode/berthward` are public, `v0.1.0-beta.2` is the current release, and `beta` is the tag the template installs. A public package cannot be made private again, only deleted.
+
+- `main` is protected by a ruleset: no deletion, no force pushes, changes only through a pull request (no approval needed), and the `test` and `build` checks must pass.
+
+- The Unraid template has two homes. `platforms/unraid/template.xml` here is the source; Community Applications reads the copy in `thecode/unraid-docker-templates` (`templates/berthward.xml`). After changing the template, copy it there unchanged. That repository must never be renamed or moved: Community Applications blacklists a template repository that changes its address.
+
+- The repository was created anew on 2026-11-22, so pull request numbers restart at 1 and the "Merge pull request #N" lines of older commits do not match the pull request pages. The notes of `v0.1.0-beta.2` were written by hand for the same reason; from the next release on the drafter writes them.
 
 - The six notes from the pre-release review are done. What each one leaves, by design:
   - Web terminal host names: with **Web Terminal Host Names** set, any other host name is refused. It is off by default so that existing set-ups keep working; without it a sign-in request under a public name is marked on Discord.
