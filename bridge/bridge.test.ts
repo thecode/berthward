@@ -160,6 +160,15 @@ describe('who is heard', () => {
     expect(reply.data.content).toContain('not allowed')
     expect(reply.data.flags & 64).toBe(64) // only they see it
   })
+
+  test('the owner in another channel is told which bot this is and where it answers', async () => {
+    const id = discord.slash('status', {}, { channel: OTHER_CHANNEL_ID })
+    const reply = await discord.until(() => discord.interactionReplies.find(r => r.interaction === id))
+    expect(reply.data.content).toContain('This is ')
+    expect(reply.data.content).toContain(`I only answer in <#${CHANNEL_ID}>`)
+    expect(reply.data.content).not.toContain('not allowed')
+    expect(reply.data.flags & 64).toBe(64)
+  })
 })
 
 describe('chat', () => {

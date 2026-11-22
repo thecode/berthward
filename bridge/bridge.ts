@@ -969,9 +969,20 @@ function allowedHere(i: Interaction): boolean {
   return id !== null && access.channels.has(id)
 }
 
+/**
+ * Several bots in one server offer the same commands, so the owner can pick the
+ * wrong bot's. Tell them which bot this is and where it answers. Anyone else
+ * gets the plain refusal: a stranger is not told where the bot lives.
+ */
+function refusal(i: Interaction): string {
+  if (!access.users.has(i.user.id) || access.channels.size === 0) return 'You are not allowed to use this here.'
+  const where = [...access.channels].map(id => `<#${id}>`).join(', ')
+  return `This is ${client.user?.username ?? 'another bot'}. I only answer in ${where}.`
+}
+
 async function onSlash(i: ChatInputCommandInteraction): Promise<void> {
   if (!allowedHere(i)) {
-    await i.reply({ content: 'You are not allowed to use this here.', flags: MessageFlags.Ephemeral }).catch(() => {})
+    await i.reply({ content: refusal(i), flags: MessageFlags.Ephemeral }).catch(() => {})
     return
   }
   const chat = i.channelId
