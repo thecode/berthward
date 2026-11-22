@@ -1,0 +1,62 @@
+# Drafts the next release's notes from merged pull requests, sorted by label.
+# The draft is updated on every push to main; publishing it creates the tag,
+# and the tag is what builds and publishes the image.
+
+name-template: "v$RESOLVED_VERSION"
+tag-template: "v$RESOLVED_VERSION"
+
+# While in beta every draft is a pre-release: 0.1.0-beta.1 -> 0.1.0-beta.2.
+# Remove this line for the first stable release.
+prerelease-identifier: "beta"
+
+categories:
+  - title: "🚨 Breaking changes"
+    semver-increment: "major"
+    when:
+      label: "breaking-change"
+
+  - title: "✨ New features"
+    semver-increment: "minor"
+    when:
+      label: "new-feature"
+
+  - title: "🐛 Bug fixes"
+    semver-increment: "patch"
+    when:
+      label: "bugfix"
+
+  - title: "🚀 Enhancements"
+    semver-increment: "patch"
+    when:
+      labels:
+        - "enhancement"
+        - "refactor"
+        - "performance"
+
+  - title: "🧰 Maintenance"
+    semver-increment: "patch"
+    when:
+      labels:
+        - "maintenance"
+        - "ci"
+
+  - title: "📚 Documentation"
+    semver-increment: "patch"
+    when:
+      labels:
+        - "documentation"
+
+  - title: "⬆️ Dependency updates"
+    semver-increment: "patch"
+    collapse-after: 1
+    when:
+      labels:
+        - "dependencies"
+
+  - type: "version-resolver"
+    semver-increment: "patch"
+
+template: |
+  ## What's Changed
+
+  $CHANGES
