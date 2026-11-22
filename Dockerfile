@@ -50,18 +50,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       ripgrep jq procps \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Ship the base CLAUDE.md, snippets, generator and helpers inside the image.
-COPY claude-md/            /usr/local/share/berthward/claude-md/
-COPY tmux.conf             /usr/local/share/berthward/tmux.conf
-COPY task-examples/        /usr/local/share/berthward/task-examples/
+# Everything else the image adds is under rootfs/, laid out as it sits in the
+# container: helpers in /usr/local/bin, and in /usr/local/share/berthward the
+# base CLAUDE.md with its snippets, the shipped settings, the example tasks,
+# tmux.conf and bashrc.
+COPY rootfs/ /
 # Interactive shells (Console button, docker exec -it ... bash) attach to the
 # Claude session. System-wide so it applies regardless of the persisted home.
-COPY bashrc                /usr/local/share/berthward/bashrc
-RUN printf '\n' >> /etc/bash.bashrc && cat /usr/local/share/berthward/bashrc >> /etc/bash.bashrc
-COPY settings.json         /usr/local/share/berthward/settings.json
-COPY allow-versions.json   /usr/local/share/berthward/allow-versions.json
-COPY entrypoint.sh generate-claude-md.sh host boot-mode logs inspect claude-guard claude-session claude-settings-merge claude-bridge claude-health discord-send /usr/local/bin/
-RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/generate-claude-md.sh \
+RUN printf '\n' >> /etc/bash.bashrc && cat /usr/local/share/berthward/bashrc >> /etc/bash.bashrc \
+    && chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/generate-claude-md.sh \
              /usr/local/bin/host /usr/local/bin/boot-mode /usr/local/bin/logs /usr/local/bin/inspect /usr/local/bin/claude-guard \
              /usr/local/bin/claude-session /usr/local/bin/claude-settings-merge \
              /usr/local/bin/claude-bridge /usr/local/bin/claude-health /usr/local/bin/discord-send
