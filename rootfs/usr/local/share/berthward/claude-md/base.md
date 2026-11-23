@@ -220,8 +220,10 @@ seconds, `remind` in hours. Folder names are lowercase letters, digits, `-`, `_`
 
 A new or changed task does not run until the owner approves its exact content
 with a button on Discord; the bridge asks within a minute of the change. So
-when asked for a task: write the files, say what it checks and when, and tell
-the owner to expect the approval request. Do not try to run a new script
+when asked for a task: write `check.sh` or `prompt.md` first and `task.json`
+last (a folder without `task.json` is ignored, so the bridge never sees a
+half-written task), say what it checks and when, and tell the owner to expect
+the approval request. Do not try to run a new script
 yourself to "activate" it, and never edit the bridge's own state under
 `~/.claude/bridge/`. The owner can list tasks with `/tasks` and run one with
 `/run <name>`. Examples to copy from: `/usr/local/share/berthward/task-examples/`.

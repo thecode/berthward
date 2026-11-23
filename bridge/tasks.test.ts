@@ -3,10 +3,10 @@
 // records what would be posted and can be told to fail, and the tasks are
 // small shell scripts in a temporary folder.
 import { afterEach, describe, expect, test } from 'bun:test'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { Tasks } from './tasks'
+import { BODY_GRACE_MS, Tasks } from './tasks'
 
 const cleanup: string[] = []
 afterEach(() => {
@@ -295,6 +295,56 @@ describe('housekeeping', () => {
     t.tasks.tick(ELEVEN)
     await Bun.sleep(100)
     expect(t.tasks.list()).toContain('No tasks yet')
+  })
+
+  test('a task whose script is not written yet is not reported as broken', async () => {
+    const t = setup()
+    const d = join(t.tasksDir, 'disk')
+    mkdirSync(d)
+    writeFileSync(join(d, 'task.json'), JSON.stringify({ kind: 'script', schedule: '0 * * * *' }))
+    t.tasks.tick(TEN)
+    await Bun.sleep(150)
+    expect(t.posts.length).toBe(0)
+    expect(t.tasks.list()).not.toContain('⚠️')
+
+    // The second file arrives: the only message is the approval request.
+    writeFileSync(join(d, 'check.sh'), 'exit 0\n')
+    t.tasks.tick(ELEVEN)
+    await t.until(() => t.posts.length === 1)
+    expect(t.posts[0].text).toContain('Task `disk`** is new and needs your approval')
+  })
+
+  test('a script that is still missing after a while is reported', async () => {
+    const t = setup()
+    const d = join(t.tasksDir, 'disk')
+    mkdirSync(d)
+    writeFileSync(join(d, 'task.json'), JSON.stringify({ kind: 'script', schedule: '0 * * * *' }))
+    const old = new Date(Date.now() - BODY_GRACE_MS - 1000)
+    utimesSync(join(d, 'task.json'), old, old)
+    t.tasks.tick(TEN)
+    await t.until(() => t.posts.length === 1)
+    expect(t.posts[0].text).toContain('Task `disk` is not usable: check.sh is missing')
+  })
+
+  test('an approved task whose script is briefly away keeps its approval', async () => {
+    const t = setup()
+    const d = t.write('disk', '0 * * * *')
+    t.tasks.tick(TEN)
+    await t.until(() => t.posts.length === 1)
+    t.approve()
+    const script = readFileSync(join(d, 'check.sh'), 'utf8')
+
+    rmSync(join(d, 'check.sh'))
+    const now = new Date()
+    utimesSync(join(d, 'task.json'), now, now)
+    t.tasks.tick(ELEVEN)
+    await Bun.sleep(150)
+    expect(t.posts.length).toBe(1)
+
+    writeFileSync(join(d, 'check.sh'), script)
+    t.result('disk', 'still failing', 1)
+    await t.tickAndRun('disk', NOON)
+    expect(t.posts.at(-1)!.text).toContain('still failing')
   })
 
   test('a broken task is reported once and keeps its approval', async () => {
