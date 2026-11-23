@@ -14,7 +14,7 @@
 // re-read every minute; nothing needs restarting after an edit.
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, type Message } from 'discord.js'
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   cronMatches,
@@ -49,6 +49,13 @@ interface Task {
 /** How much of a task's script or prompt fits in the approval request; a longer one is also attached in full. */
 const TASK_SHOWN = 1200
 
+/**
+ * How long a task.json may be without its script or prompt before that is
+ * reported. A task's two files are written one after the other, and the second
+ * can wait on a permission prompt, so a scan often sees the folder half done.
+ */
+export const BODY_GRACE_MS = 5 * 60_000
+
 interface TasksState {
   /** name → content hash the user approved. */
   approved: Record<string, string>
@@ -72,6 +79,8 @@ export class Tasks {
   private problems = new Map<string, string>()
   /** The tasks folder could not be read on the last scan (not: it does not exist). */
   private scanFailed = false
+  /** Tasks whose second file is not there yet (see BODY_GRACE_MS): neither usable nor a problem. */
+  private incomplete = new Set<string>()
   private asking = new Set<string>()
 
   constructor(private host: TaskHost) {
@@ -109,6 +118,7 @@ export class Tasks {
       return out
     }
     this.scanFailed = false
+    this.incomplete.clear()
     // A problem is forgotten with its folder.
     for (const name of [...this.problems.keys()]) {
       if (!names.includes(name) || !existsSync(join(this.host.tasksDir, name, 'task.json'))) this.problems.delete(name)
@@ -121,7 +131,16 @@ export class Tasks {
         const json = readFileSync(join(dir, 'task.json'), 'utf8')
         const config = parseTaskConfig(json)
         const bodyFile = config.kind === 'script' ? 'check.sh' : 'prompt.md'
-        if (!existsSync(join(dir, bodyFile))) throw new Error(`${bodyFile} is missing`)
+        if (!existsSync(join(dir, bodyFile))) {
+          // Probably still being written: say nothing until task.json has
+          // been alone for a while.
+          if (Date.now() - statSync(join(dir, 'task.json')).mtimeMs < BODY_GRACE_MS) {
+            this.incomplete.add(name)
+            this.problems.delete(name)
+            continue
+          }
+          throw new Error(`${bodyFile} is missing`)
+        }
         const body = readFileSync(join(dir, bodyFile), 'utf8')
         const hash = createHash('sha256').update(json).update('\0').update(body).digest('hex')
         out.push({ name, dir, config, json, body, hash })
@@ -223,7 +242,7 @@ export class Tasks {
   tick(now: Date): void {
     const tasks = this.scan()
     if (this.scanFailed) return // try again in a minute; nothing is forgotten
-    this.forget(new Set([...tasks.map(t => t.name), ...this.problems.keys()]))
+    this.forget(new Set([...tasks.map(t => t.name), ...this.problems.keys(), ...this.incomplete]))
     for (const t of tasks) {
       if (!t.config.enabled) continue
       if (!this.isApproved(t)) {

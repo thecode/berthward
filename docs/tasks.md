@@ -88,7 +88,9 @@ read.
 
 Deleting a task's folder removes its approval and history. A task with a
 broken `task.json` is reported once and keeps its approval, so fixing it back
-to what you approved needs no new request.
+to what you approved needs no new request. A `task.json` without its script
+or prompt is taken as still being written and is reported only after five
+minutes.
 
 ## Commands
 
