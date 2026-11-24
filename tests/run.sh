@@ -749,6 +749,68 @@ if [ "$(jq -S . "$TMP/merged5.json")" = "$(jq -S . "$TMP/merged7.json")" ]; then
 merge "$TMP/merged2.json" > "$TMP/merged3.json"
 if [ "$(jq -S . "$TMP/merged2.json")" = "$(jq -S . "$TMP/merged3.json")" ]; then pass "merge is idempotent"; else fail "merge not idempotent"; fi
 
+# ── Template change log from the release notes ───────────────────────────────
+echo "template change log"
+CHANGES="$ROOT/platforms/unraid/template-changes.sh"
+cat > "$TMP/template.xml" <<'EOF'
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>berthward</Name>
+  <Changes>
+### 1.0.1
+- Written by hand.
+
+### 1.0.0
+- First version.
+  </Changes>
+  <Category>Tools:System</Category>
+</Container>
+EOF
+cat > "$TMP/releases.json" <<'EOF'
+[
+  {"tag_name": "v1.0.2", "draft": false, "published_at": "2026-01-02T00:00:00Z",
+   "body": "## What's Changed\r\n\r\n## 🧰 Maintenance\r\n\r\n- #7 - Tidy the workflow (@someone)\r\n"},
+  {"tag_name": "v1.1.0", "draft": false, "published_at": "2026-01-03T00:00:00Z",
+   "body": "## What's Changed\n\n## ✨ New features\n\n- #9 - Tasks & alerts for <all> pools (beta) (@someone)\n\n## 🐛 Bug fixes\n\n- #8 - Do not lose a message (@someone)\n\n## 📚 Documentation\n\n- #10 - Docs only (@someone)\n\n## ⬆️ Dependency updates\n\n- #11 - Bump node (@[dependabot[bot]](https://github.com/apps/dependabot))\n"},
+  {"tag_name": "v1.2.0", "draft": true, "published_at": null, "body": "## 🐛 Bug fixes\n\n- #12 - Not out yet (@someone)\n"},
+  {"tag_name": "v1.0.1", "draft": false, "published_at": "2026-01-01T00:00:00Z", "body": "## 🐛 Bug fixes\n\n- #5 - From the notes (@someone)\n"}
+]
+EOF
+bash "$CHANGES" "$TMP/template.xml" "$TMP/releases.json" > "$TMP/template.out"
+want='  <Changes>
+### 1.1.0
+- Tasks &amp; alerts for &lt;all&gt; pools (beta)
+- Do not lose a message
+
+### 1.0.2
+- Maintenance only, nothing changes in use.
+
+### 1.0.1
+- Written by hand.
+
+### 1.0.0
+- First version.
+  </Changes>'
+if [ "$(sed -n '/<Changes>/,/<\/Changes>/p' "$TMP/template.out")" = "$want" ]; then pass "new releases are added on top, newest first, user-facing lines only"; else fail "change log wrong: $(sed -n '/<Changes>/,/<\/Changes>/p' "$TMP/template.out")"; fi
+if [ "$(grep -v -e '^###' -e '^- ' -e '^$' "$TMP/template.out")" = "$(grep -v -e '^###' -e '^- ' -e '^$' "$TMP/template.xml")" ]; then pass "the rest of the template is untouched"; else fail "the template changed outside the change log"; fi
+bash "$CHANGES" "$TMP/template.out" "$TMP/releases.json" > "$TMP/template.out2"
+if cmp -s "$TMP/template.out" "$TMP/template.out2"; then pass "a second run adds nothing"; else fail "a second run changed the template"; fi
+bash "$CHANGES" "$TMP/template.xml" "$TMP/releases.json" 2 > "$TMP/template.cut"
+want='  <Changes>
+### 1.1.0
+- Tasks &amp; alerts for &lt;all&gt; pools (beta)
+- Do not lose a message
+
+### 1.0.2
+- Maintenance only, nothing changes in use.
+  </Changes>'
+if [ "$(sed -n '/<Changes>/,/<\/Changes>/p' "$TMP/template.cut")" = "$want" ]; then pass "the change log is cut to the newest entries"; else fail "cut change log wrong: $(sed -n '/<Changes>/,/<\/Changes>/p' "$TMP/template.cut")"; fi
+if [ "$(grep -v -e '^###' -e '^- ' -e '^$' "$TMP/template.cut")" = "$(grep -v -e '^###' -e '^- ' -e '^$' "$TMP/template.xml")" ]; then pass "cutting leaves the rest of the template untouched"; else fail "cutting changed the template outside the change log"; fi
+if bash "$CHANGES" "$TMP/template.xml" "$TMP/releases.json" 0 >/dev/null 2>&1; then fail "a limit of 0 was accepted"; else pass "a limit of 0 is refused"; fi
+if bash "$CHANGES" "$ROOT/platforms/unraid/template.xml" "$TMP/releases.json" > "$TMP/real.out" && grep -q '^### 1.1.0$' "$TMP/real.out"; then pass "works on the real template"; else fail "failed on the real template"; fi
+sed 's/<Changes>/<Changes>x/' "$TMP/template.xml" > "$TMP/broken.xml"
+if bash "$CHANGES" "$TMP/broken.xml" "$TMP/releases.json" >/dev/null 2>&1; then fail "a template without a <Changes> line was accepted"; else pass "a template without a <Changes> line is refused"; fi
+
 if [ "$FAIL" = 0 ]; then
   echo "all tests passed"
 else
