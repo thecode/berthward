@@ -115,10 +115,11 @@ run. A script that does not look at its arguments ignores them.
 - Words are split at spaces; there is no quoting. Up to 10 words of plain
   letters, digits and punctuation.
 - Only script tasks take arguments.
-- With the slash command, type the words after the task's name
-  (`/run disk-health --dry-run`) and pick the suggestion that shows them, or
-  put them in the separate `arguments` field. With `!run` they simply follow
-  the name.
+- When you pick `/run` from Discord's command list, the words go in its
+  `arguments` field: choose the task, then press Tab or click `arguments`.
+  Discord drops words typed after the task's name there. Typed or pasted as
+  a plain message (`/run disk-health --report`, `!run disk-health --report`)
+  they simply follow the name.
 
 To give an existing task an option, ask Claude to add it. That changes the
 script, so it needs your approval again.

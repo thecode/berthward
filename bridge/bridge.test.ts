@@ -401,9 +401,8 @@ describe('tasks', () => {
     expect((await discord.until(() => discord.botSaid('📋 **echo-args** (with `--dry-run`)'))).content).toContain('got: --dry-run')
     // A result is posted a moment before its run counts as finished.
     await Bun.sleep(300)
-    // Typed after the name in the name field: the suggestion keeps the words.
-    expect(await discord.autocomplete('run', 'name', 'echo-args --quick')).toEqual(['echo-args --quick'])
-    discord.slash('run', { name: 'echo-args --quick' })
+    // The slash command pasted as text, field label and all.
+    discord.say('/run echo-args arguments: --quick')
     expect((await discord.until(() => discord.botSaid('📋 **echo-args** (with `--quick`)'))).content).toContain('got: --quick')
     await Bun.sleep(300)
     discord.say('!run echo-args --limit 5')

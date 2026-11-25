@@ -15,7 +15,6 @@ import {
   parseCron,
   parseIds,
   parseRunRequest,
-  runSuggestions,
   parseSessionHours,
   parseStreamLine,
   parseTaskConfig,
@@ -311,18 +310,13 @@ test('parseRunRequest', () => {
   expect(parseRunRequest('Disk-Health')).toEqual({ name: 'disk-health', args: [] })
   expect(parseRunRequest('  ssd-writes   --dry-run  Limit=5 ')).toEqual({ name: 'ssd-writes', args: ['--dry-run', 'Limit=5'] })
   expect(parseRunRequest('')).toEqual({ name: '', args: [] })
+  // A slash command pasted as text keeps its field labels.
+  const report = { name: 'disk-health', args: ['--report'] }
+  expect(parseRunRequest('disk-health arguments: --report')).toEqual(report)
+  expect(parseRunRequest('name:disk-health arguments:--report')).toEqual(report)
+  expect(parseRunRequest('name: disk-health')).toEqual({ name: 'disk-health', args: [] })
+  expect(parseRunRequest('disk-health --note arguments: x')).toEqual({ name: 'disk-health', args: ['--note', 'arguments:', 'x'] })
   expect(() => parseRunRequest('t ' + 'a '.repeat(11))).toThrow('At most 10 arguments')
   expect(() => parseRunRequest('t ' + 'x'.repeat(101))).toThrow('at most 100 characters')
   expect(() => parseRunRequest('t café')).toThrow('plain letters')
-})
-
-test('runSuggestions', () => {
-  const names = ['disk-health', 'pool-health', 'ssd-writes']
-  expect(runSuggestions(names, '')).toEqual(names)
-  expect(runSuggestions(names, 'Health')).toEqual(['disk-health', 'pool-health'])
-  // Arguments typed after the name stay on the suggestion.
-  expect(runSuggestions(names, 'disk-health --dry-run')).toEqual(['disk-health --dry-run'])
-  expect(runSuggestions(names, 'health  --dry-run -v')).toEqual(['disk-health --dry-run -v', 'pool-health --dry-run -v'])
-  expect(runSuggestions(names, 'nope --dry-run')).toEqual([])
-  expect(runSuggestions(names, 'disk-health ' + 'x'.repeat(100))).toEqual([])
 })

@@ -395,28 +395,17 @@ export const RUN_ARG_LENGTH_MAX = 100
  * arguments. Words are split at spaces and nothing else: there is no quoting,
  * and the words never pass through a shell. Throws with a message meant for
  * the user.
+ *
+ * A slash command pasted or typed as plain text carries its field labels
+ * (`/run disk-health arguments: --report`, `/run name:disk-health
+ * arguments:--report`); the labels are dropped.
  */
 export function parseRunRequest(text: string): { name: string; args: string[] } {
-  const [name = '', ...args] = text.trim().split(/\s+/).filter(Boolean)
+  const unlabelled = text.trim().replace(/^name:\s*/i, '').replace(/^(\S+\s+)arguments:\s*/i, '$1')
+  const [name = '', ...args] = unlabelled.split(/\s+/).filter(Boolean)
   if (args.length > RUN_ARGS_MAX) throw new Error(`At most ${RUN_ARGS_MAX} arguments can be passed to a task.`)
   if (args.some(a => a.length > RUN_ARG_LENGTH_MAX)) throw new Error(`An argument can be at most ${RUN_ARG_LENGTH_MAX} characters.`)
   // Printable ASCII only: the words are shown back on Discord and land in a script.
   if (args.some(a => !/^[\x21-\x7e]+$/.test(a))) throw new Error('Arguments can only hold plain letters, digits and punctuation.')
   return { name: name.toLowerCase(), args }
-}
-
-/**
- * Suggestions for the task-name field of `/run` while the user types. Words
- * after the name are arguments typed in the same field: they stay on every
- * suggestion, so picking one (or sending without picking) keeps them.
- */
-export function runSuggestions(names: string[], typed: string): string[] {
-  const [first = '', ...rest] = typed.trim().split(/\s+/).filter(Boolean)
-  const name = first.toLowerCase()
-  // Once arguments follow, the name is finished: an exact match is the only suggestion.
-  const matching = rest.length > 0 && names.includes(name) ? [name] : names.filter(n => n.includes(name))
-  return matching
-    .map(n => [n, ...rest].join(' '))
-    .filter(s => s.length <= 100) // Discord's limit for a suggestion
-    .slice(0, 25)
 }

@@ -50,7 +50,6 @@ import {
   parseAccess,
   parseIds,
   parseRunRequest,
-  runSuggestions,
   parseSessionHours,
   parseStreamLine,
   safeFileName,
@@ -796,7 +795,7 @@ const COMMANDS: Array<{ name: string; usage?: string; description: string; optio
     usage: 'run <name> [arguments]',
     description: 'Run one task now',
     options: [
-      { type: STRING_OPTION, name: 'name', description: 'Task name; words after it go to a script task', required: true, autocomplete: true },
+      { type: STRING_OPTION, name: 'name', description: 'Task name', required: true, autocomplete: true },
       {
         type: STRING_OPTION,
         name: 'arguments',
@@ -1057,8 +1056,9 @@ async function onAutocomplete(i: AutocompleteInteraction): Promise<void> {
     await i.respond([]).catch(() => {})
     return
   }
-  const suggestions = runSuggestions(tasks.names(), i.options.getFocused())
-  await i.respond(suggestions.map(n => ({ name: n, value: n }))).catch(() => {})
+  const typed = i.options.getFocused().toLowerCase()
+  const names = tasks.names().filter(n => n.includes(typed)).slice(0, 25)
+  await i.respond(names.map(n => ({ name: n, value: n }))).catch(() => {})
 }
 
 /**
