@@ -125,9 +125,9 @@ host zpool status
 host sh -c 'ls -la /boot/config/plugins/'
 ```
 
-`host` starts a short-lived helper container (`$HOST_HELPER_IMAGE`, pre-pulled
-at start) that enters the host's namespaces
-(`docker run --rm --privileged --pid=host <image> nsenter -t 1 -m -u -i -n -p -- <command>`).
+`host` starts a short-lived helper container (from this container's own
+image, so nothing is downloaded) that enters the host's namespaces
+(`docker run --rm --privileged --pid=host --entrypoint nsenter <image> -t 1 -m -u -i -n -p -- <command>`).
 The outer container (this one) does NOT need `--privileged` for this to work —
 only the Docker socket is required. Always use `host …` rather than spelling
 out the `docker run … nsenter …` form: it is shorter, avoids quoting mistakes,

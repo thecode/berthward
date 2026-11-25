@@ -19,8 +19,10 @@ expect_not_contains() { if grep -qF -- "$2" "$1"; then fail "unexpected: $2"; el
 # ── Fixtures ─────────────────────────────────────────────────────────────────
 mkdir -p "$TMP/bin" "$TMP/share"
 cp -r "$SHARE/claude-md" "$TMP/share/"
-cp "$BIN/host" "$TMP/bin/host"
-chmod +x "$TMP/bin/host"
+cp "$BIN/host" "$BIN/self-image" "$TMP/bin/"
+chmod +x "$TMP/bin/host" "$TMP/bin/self-image"
+# What the entrypoint hands to `host`: the image the helper is started from.
+export BERTHWARD_SELF_IMAGE=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 
 cat > "$TMP/bin/docker" <<'EOF'
 #!/bin/bash
@@ -565,14 +567,44 @@ if [ "$(MOUNTINFO="$TMP/mountinfo-noboot" bash "$BIN/boot-mode")" = none ]; then
 if [ "$(MOUNTINFO="$TMP/no-such-file" bash "$BIN/boot-mode")" = unknown ]; then pass "boot-mode: unknown"; else fail "boot-mode unknown"; fi
 # host: an inherited MOUNTINFO (e.g. exported in the session shell) must not
 # skip the read-only remount. The fake docker just echoes its arguments.
-mkdir -p "$TMP/hostbin"; cp "$BIN/host" "$BIN/boot-mode" "$TMP/hostbin/"
+mkdir -p "$TMP/hostbin"; cp "$BIN/host" "$BIN/boot-mode" "$BIN/self-image" "$TMP/hostbin/"
+# `inspect` answers with the image of the container asked about (here simply
+# its ID again), or with FAKE_INSPECT if that is set, or fails when told to.
 cat > "$TMP/hostbin/docker" <<'FAKE'
 #!/bin/sh
+if [ "$1" = inspect ]; then
+  [ "${FAKE_INSPECT_FAIL:-0}" = 1 ] && exit 1
+  for last; do :; done
+  echo "${FAKE_INSPECT:-sha256:$last}"
+  exit 0
+fi
 echo "$@"
 FAKE
 chmod +x "$TMP/hostbin/docker"
 out=$(MOUNTINFO="$TMP/mountinfo-boot-rw" PATH="$TMP/hostbin:$PATH" bash "$TMP/hostbin/host" true)
 case "$out" in *"remount,bind,ro /boot"*) pass "host: ignores inherited MOUNTINFO" ;; *) fail "host: MOUNTINFO skipped the remount: $out" ;; esac
+
+# host: the helper container is started from this container's own image.
+SELF_ID=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+OTHER_ID=fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210
+printf '100 90 0:50 / / rw,relatime - overlay overlay rw\n120 100 8:2 /docker/containers/%s/hostname /etc/hostname rw,relatime - ext4 /dev/sda2 rw\n' "$SELF_ID" > "$TMP/mountinfo-self"
+printf '100 90 0:50 / / rw,relatime - overlay overlay rw\n' > "$TMP/mountinfo-noself"
+run_host() { env -u BERTHWARD_SELF_IMAGE -u HOST_HELPER_IMAGE PATH="$TMP/hostbin:$PATH" "$@" bash "$TMP/hostbin/host" true; }
+out=$(run_host SELF_MOUNTINFO="$TMP/mountinfo-self")
+case "$out" in *"-p -- env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin HOME=/root unshare -m "*) pass "host: the command gets a plain environment" ;; *) fail "host: the image's environment reaches the command: $out" ;; esac
+case "$out" in *"--no-healthcheck --entrypoint nsenter sha256:$SELF_ID -t 1 -m -u -i -n -p -- "*) pass "host: the helper uses this container's own image" ;; *) fail "host: own image not used: $out" ;; esac
+out=$(run_host SELF_MOUNTINFO="$TMP/mountinfo-noself" BERTHWARD_SELF_IMAGE="sha256:$OTHER_ID")
+case "$out" in *"--entrypoint nsenter sha256:$OTHER_ID -t 1 "*) pass "host: the image handed on by the entrypoint is used without a lookup" ;; *) fail "host: handed-on image not used: $out" ;; esac
+out=$(run_host SELF_MOUNTINFO="$TMP/mountinfo-self" BERTHWARD_SELF_IMAGE=some/image:tag)
+case "$out" in *"--entrypoint nsenter sha256:$SELF_ID -t 1 "*) pass "host: a handed-on value that is not an image ID is looked up again" ;; *) fail "host: a name was accepted as the helper image: $out" ;; esac
+out=$(run_host SELF_MOUNTINFO="$TMP/mountinfo-self" HOST_HELPER_IMAGE=alpine:3.21)
+case "$out" in *"--entrypoint nsenter sha256:$SELF_ID -t 1 "*) pass "host: the former HOST_HELPER_IMAGE setting is ignored" ;; *) fail "host: HOST_HELPER_IMAGE still decides the image: $out" ;; esac
+for why in "SELF_MOUNTINFO=$TMP/mountinfo-noself" "FAKE_INSPECT_FAIL=1" "FAKE_INSPECT=alpine:3.21"; do
+  rc=0; out=$(run_host SELF_MOUNTINFO="$TMP/mountinfo-self" "$why" 2>&1) || rc=$?
+  if [ "$rc" = 69 ] && [[ $out == *"cannot find this container's own image"* ]] && [[ $out != *nsenter* ]]; then pass "host: refuses to run without its own image (${why%%=*})"; else fail "host: ran without its own image (${why%%=*}): rc=$rc $out"; fi
+done
+rc=0; out=$(env -u BERTHWARD_SELF_IMAGE PATH="$TMP/hostbin:$PATH" SELF_MOUNTINFO="$TMP/mountinfo-noself" bash "$TMP/hostbin/host" 2>&1) || rc=$?
+if [ "$rc" = 64 ]; then pass "host: the usage error comes before the image lookup"; else fail "host: no usage error: rc=$rc $out"; fi
 
 echo "guard: still silent for everyday commands"
 expect_allowed 'logs plex'

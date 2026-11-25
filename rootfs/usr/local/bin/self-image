@@ -1,0 +1,17 @@
+#!/bin/bash
+# self-image — prints the ID of the image this container runs (sha256:…).
+#
+# `host` starts its helper container from that image: it is on the server
+# already and brings nsenter, so nothing has to be downloaded.
+#
+# Docker bind-mounts /etc/hostname and its neighbours from a folder named
+# after the container's ID, which is how a container can learn its own ID
+# whatever its name or hostname is. Exits 1 with nothing printed if the ID or
+# the image cannot be found (no Docker socket, or not a Docker container).
+set -euo pipefail
+
+id=$(grep -oE '/containers/[0-9a-f]{64}/' "${SELF_MOUNTINFO:-/proc/self/mountinfo}" 2>/dev/null | head -n 1 | cut -d/ -f3) || true
+[ -n "$id" ] || exit 1
+image=$(docker inspect --format '{{.Image}}' "$id" 2>/dev/null) || exit 1
+[[ $image =~ ^sha256:[0-9a-f]{64}$ ]] || exit 1
+printf '%s\n' "$image"

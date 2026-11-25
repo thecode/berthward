@@ -92,9 +92,12 @@ bridge: connected as <your bot>; 1 allowed user(s), 1 channel(s)
 
 In Discord the bot says hello in its channel and lists its commands.
 
-The first start also downloads a small helper image (`alpine`) that host
-commands run in. On a slow connection the log shows a warning about it and
-the start takes longer.
+Host commands run in a short-lived helper container started from Berthward's
+own image, so the first start downloads nothing more. An install made before
+0.1.0-beta.6 used a small `alpine:3.21` image for this and still has a
+**Host Helper Image** field in its template. The field is ignored now and can
+be removed, and so can the `alpine:3.21` image (Unraid's Docker page lists it
+as an orphan image in Advanced View).
 
 **Turn Autostart on** for the container (the switch on the Docker tab), or it
 will not come back after a server reboot.
@@ -239,8 +242,9 @@ it, send `/new` so the next Discord conversation reads it.
 
 - **The bot does not answer:** [discord.md](discord.md#if-something-does-not-work).
 - **The web terminal:** [access.md](access.md#if-something-does-not-work).
-- `CLAUDE.md` says `Host scan failed`: the helper image could not be pulled
-  or the scan could not run. Check internet access, restart the container.
+- `CLAUDE.md` says `Host scan failed`: the helper container could not start
+  or the scan could not run. Check that the Docker socket is mapped, then
+  restart the container.
 - `Claude exited ... Restarting in 5 s` keeps repeating in the terminal: read
   the message above it; after five quick exits the wrapper stops and leaves
   the output on screen.
