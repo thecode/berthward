@@ -458,8 +458,8 @@ Where things are in this repository:
 | `docs/` | The guides |
 
 The image is Debian slim plus the Claude Code native binary, the Docker CLI,
-tmux, git, ssh, ripgrep, jq, and Bun for the Discord bridge. Node.js is not
-included, so MCP servers that are started through `npx` do not work inside
+tmux, git, ssh, ripgrep, jq, Python 3 (standard library only, no `pip`) and
+Bun for the Discord bridge. Node.js is not included, so MCP servers that are started through `npx` do not work inside
 this container.
 
 ```bash
@@ -481,8 +481,8 @@ templates*.
 Tests:
 
 ```bash
-# Scanner, guard, helpers and settings merge. Needs bash, jq and python3;
-# no Docker or Unraid.
+# Scanner, guard, helpers and settings merge. Needs bash, jq and python3
+# (the image has all three); no Docker or Unraid.
 bash tests/run.sh
 
 # The Discord bridge, against a stand-in Discord and a stand-in Claude.

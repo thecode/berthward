@@ -149,6 +149,16 @@ A short ping to an IP address, on its own, runs without a permission prompt:
 options, or inside a longer command asks first, so prefer the address when you
 know it.
 
+### Scripting
+
+For parsing or arithmetic that is awkward in shell, this container has `jq`
+and Python 3 (`python3`). It is the standard library only: there is no `pip`,
+so do not try to install packages. The server itself may have no Python at
+all, so run Python here and feed it from the server
+(`host smartctl -j -a /dev/sdb | python3 -c '…'`), not `host python3 …`. In a
+task's `check.sh` a `python3 - <<'EOF'` block is fine: the owner approves it
+with the script.
+
 ### Unraid GUI compatibility
 
 CLI usage is fine. The key principle: **the result must be manageable through
