@@ -122,7 +122,7 @@ are no monitoring tasks then, because Discord is where they report.
 **The container** holds Claude Code and the Docker CLI. It uses the Docker
 socket to manage containers and to run host commands through a `host`
 wrapper: `host <command>` starts a short-lived privileged helper container
-(`alpine`) that enters the host's namespaces and runs the command there. The
+(from Berthward's own image) that enters the host's namespaces and runs the command there. The
 main container itself does **not** run privileged.
 
 **The scan.** On every start a script scans the host and writes `CLAUDE.md`
@@ -408,7 +408,6 @@ Every setting is a field in the template. Paths first, then variables.
 | Interactive Session | `INTERACTIVE_SESSION` | `true` | `false` = Discord only: no terminal, web terminal or Claude app |
 | Resume Conversation | `CONTINUE` | `true` | Resume the last interactive conversation on start |
 | tmux Session Name | `TMUX_SESSION` | `main` | Name of the tmux session |
-| Host Helper Image | `HOST_HELPER_IMAGE` | `alpine:3.21` | Image behind `host`. Pulled on start |
 | Container App Data | `/appdata` | not mounted | Other containers' configs, read-only recommended |
 
 A few more variables have no template field; add them with *Add another

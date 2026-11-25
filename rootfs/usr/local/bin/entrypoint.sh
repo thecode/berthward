@@ -5,12 +5,19 @@ set -euo pipefail
 # Discord, its folders, and what the scan and the guard read). They have no
 # place in a running container: whatever the container was started with, they
 # end here, before anything reads them.
-unset BRIDGE_DISCORD_API BRIDGE_STATE_DIR BRIDGE_WORKDIR BRIDGE_TASKS_DIR MOUNTINFO CLAUDE_MD_DEST CLAUDE_MD_SHARE DOCKER_SOCK USERSCRIPTS_SCHEDULE
+unset BRIDGE_DISCORD_API BRIDGE_STATE_DIR BRIDGE_WORKDIR BRIDGE_TASKS_DIR MOUNTINFO SELF_MOUNTINFO CLAUDE_MD_DEST CLAUDE_MD_SHARE DOCKER_SOCK USERSCRIPTS_SCHEDULE
 
 SESSION="${TMUX_SESSION:-main}"
 RC_NAME="${REMOTE_CONTROL_NAME:-$(hostname)}"
 CONTINUE="${CONTINUE:-true}"
-export HOST_HELPER_IMAGE="${HOST_HELPER_IMAGE:-alpine:3.21}"
+# `host` starts its helper container from this container's own image. It is
+# looked up once here and handed on, so a host command does not have to ask
+# Docker each time. Empty (no Docker socket): `host` tries again itself and
+# says what is wrong. HOST_HELPER_IMAGE named a separate helper image in
+# earlier versions; a template from then still passes it, and it is ignored.
+unset HOST_HELPER_IMAGE
+BERTHWARD_SELF_IMAGE=$(self-image 2>/dev/null || true)
+export BERTHWARD_SELF_IMAGE
 
 # ── Seed dotfiles into the persisted home on first run ───────────────────────
 [ -f /root/.tmux.conf ] || cp /usr/local/share/berthward/tmux.conf /root/.tmux.conf
@@ -63,16 +70,6 @@ if [ -d /root/.ssh ]; then
   find /root/.ssh -type f -name 'id_*' ! -name '*.pub' -exec chmod 600 {} + 2>/dev/null || true
   chmod 644 /root/.ssh/*.pub 2>/dev/null || true
   chmod 600 /root/.ssh/config /root/.ssh/known_hosts 2>/dev/null || true
-fi
-
-# ── Make sure the host helper image is available ─────────────────────────────
-# `host` (and the scan below) start a tiny helper container; pull it now so
-# the first host command does not stall or fail on a cold cache.
-if [ -S /var/run/docker.sock ]; then
-  if ! docker image inspect "$HOST_HELPER_IMAGE" >/dev/null 2>&1; then
-    timeout 60 docker pull -q "$HOST_HELPER_IMAGE" >/dev/null 2>&1 \
-      || echo "Warning: could not pull $HOST_HELPER_IMAGE within 60 s — the first host command will pull it instead."
-  fi
 fi
 
 # ── Seed the example monitoring tasks on first run ───────────────────────────

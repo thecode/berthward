@@ -106,7 +106,7 @@ csv()   { get "$1" | sed 's/,$//; s/,/, /g'; }
 
     if [ -z "$SCAN" ]; then
       echo ""
-      echo "_Host scan failed (helper image not available or Docker unreachable), so system, storage, VM and plugin details are missing. Restart the container to retry, or run \`host uptime\` to check._"
+      echo "_Host scan failed (the helper container could not start or Docker is unreachable), so system, storage, VM and plugin details are missing. Restart the container to retry, or run \`host uptime\` to check._"
       echo ""
     else
       VERSION=$(get VERSION)
