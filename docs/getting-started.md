@@ -156,8 +156,9 @@ an attacker would try to use Claude.
 
 ## 7. Your first task
 
-Two example tasks are waiting for your approval in the channel: a pool health
-check every 15 minutes and a morning summary. Each request shows exactly what
+Three example tasks are waiting for your approval in the channel: a pool
+health check every 15 minutes, an hourly disk health check and a morning
+summary. Each request shows exactly what
 the task contains. **Approve** the ones you want.
 
 Then ask for your own:

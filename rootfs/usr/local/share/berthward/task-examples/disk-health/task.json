@@ -1,0 +1,7 @@
+{
+  "kind": "script",
+  "schedule": "7 * * * *",
+  "enabled": true,
+  "timeout": 120,
+  "remind": 24
+}

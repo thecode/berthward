@@ -25,7 +25,7 @@ jobs:
       - name: shellcheck
         run: |
           cd rootfs/usr/local
-          shellcheck -s bash bin/* share/berthward/bashrc share/berthward/task-examples/pool-health/check.sh ../../../tests/run.sh ../../../platforms/unraid/template-changes.sh
+          shellcheck -s bash bin/* share/berthward/bashrc share/berthward/task-examples/pool-health/check.sh share/berthward/task-examples/disk-health/check.sh ../../../tests/run.sh ../../../platforms/unraid/template-changes.sh
 
       - name: Scanner and guard tests
         run: bash tests/run.sh

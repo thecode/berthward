@@ -101,10 +101,17 @@ minutes.
 
 ## The examples
 
-A new install starts with two tasks, waiting for your approval:
+A new install starts with three tasks, waiting for your approval:
 
 - **`pool-health`** (script, every 15 minutes): alerts when a ZFS pool is not
   healthy, or when an array disk is missing, disabled or has errors.
+- **`disk-health`** (script, hourly): alerts when a disk's SMART data shows
+  trouble: a failed health check, reallocated or unreadable sectors, an SSD
+  near the end of its rated life, or a disk running too hot. A disk that is
+  spun down is left asleep and skipped. The limits are at the top of the
+  script; it is written in Python inside `check.sh`, as an example of that.
+  An install from before 0.1.0-beta.8 does not get it by itself: ask Claude
+  to copy it from `/usr/local/share/berthward/task-examples/disk-health`.
 - **`daily-digest`** (prompt, 08:00): a short morning status of storage,
   containers, VMs and load.
 

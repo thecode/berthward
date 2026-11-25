@@ -781,6 +781,67 @@ if [ "$(jq -S . "$TMP/merged5.json")" = "$(jq -S . "$TMP/merged7.json")" ]; then
 merge "$TMP/merged2.json" > "$TMP/merged3.json"
 if [ "$(jq -S . "$TMP/merged2.json")" = "$(jq -S . "$TMP/merged3.json")" ]; then pass "merge is idempotent"; else fail "merge not idempotent"; fi
 
+# ── Example task: disk-health ────────────────────────────────────────────────
+# The real script, with a stand-in `host` that answers the SMART query with a
+# fixture and the disk list with Unraid's names.
+echo "example task: disk-health"
+DISK_HEALTH="$SHARE/task-examples/disk-health/check.sh"
+mkdir -p "$TMP/dhbin"
+cat > "$TMP/dhbin/host" <<'FAKE'
+#!/bin/bash
+if [ "$1" = cat ]; then
+  printf '["parity"]\nname="parity"\ndevice="sdd"\n["disk1"]\nname="disk1"\ndevice="sde"\n["cache"]\nname="cache"\ndevice="nvme0n1"\n["pool"]\nname="pool"\ndevice="sdb"\n'
+  exit 0
+fi
+[ -n "${FAKE_SMART_ERR:-}" ] && { echo "$FAKE_SMART_ERR" >&2; exit 1; }
+cat "$FAKE_SMART"
+FAKE
+chmod +x "$TMP/dhbin/host"
+ata() { # ata <device> <model> <rotation> <passed> <temperature> <attributes as JSON array>
+  printf '{"smartctl":{"exit_status":0},"device":{"name":"%s","type":"sat"},"model_name":"%s","serial_number":"S-%s","rotation_rate":%s,"smart_status":{"passed":%s},"temperature":{"current":%s},"ata_smart_attributes":{"table":%s}}\n' "$1" "$2" "${1##*/}" "$3" "$4" "$5" "$6"
+}
+nvme() { # nvme <device> <critical warning> <spare> <percentage used> <media errors> <temperature>
+  printf '{"smartctl":{"exit_status":0},"device":{"name":"%s","type":"nvme"},"model_name":"Fast NVMe","serial_number":"S-%s","smart_status":{"passed":true},"temperature":{"current":%s},"nvme_smart_health_information_log":{"critical_warning":%s,"available_spare":%s,"available_spare_threshold":10,"percentage_used":%s,"media_errors":%s}}\n' "$1" "${1##*/}" "$6" "$2" "$3" "$4" "$5"
+}
+asleep='{"smartctl":{"exit_status":2,"messages":[{"string":"Device is in STANDBY mode, exit(2)","severity":"information"}]},"device":{"name":"/dev/sde","type":"sat"}}'
+attr() { printf '{"id":%s,"name":"%s","value":%s,"thresh":0,"when_failed":"%s","raw":{"value":%s}}' "$1" "$2" "$3" "${5:-}" "$4"; }
+run_dh() { rc=0; out=$(PATH="$TMP/dhbin:$PATH" "$@" bash "$DISK_HEALTH" 2>&1) || rc=$?; }
+
+{
+  ata /dev/sdb "Good SSD" 0 true 40 "[$(attr 5 Reallocated_Sector_Ct 100 0),$(attr 199 UDMA_CRC_Error_Count 100 6),$(attr 202 Percent_Lifetime_Remain 93 7)]"
+  ata /dev/sdd "Good HDD" 5400 true 38 "[$(attr 5 Reallocated_Sector_Ct 100 0),$(attr 197 Current_Pending_Sector 100 0)]"
+  echo "$asleep"
+  nvme /dev/nvme0 0 100 12 0 44
+} > "$TMP/smart-good.json"
+run_dh env FAKE_SMART="$TMP/smart-good.json"
+if [ "$rc" = 0 ] && [ -z "$out" ]; then pass "healthy disks, a sleeping disk and cable errors are quiet"; else fail "disk-health not quiet: rc=$rc $out"; fi
+
+{
+  ata /dev/sdb "Worn SSD" 0 true 40 "[$(attr 202 Percent_Lifetime_Remain 8 92)]"
+  ata /dev/sdd "Bad HDD" 5400 false 57 "[$(attr 5 Reallocated_Sector_Ct 90 8),$(attr 197 Current_Pending_Sector 100 2),$(attr 1 Raw_Read_Error_Rate 40 0 now)]"
+  ata /dev/sdf "Warm SSD" 0 true 57 "[$(attr 231 Temperature_Celsius 5 0)]"
+  echo "$asleep"
+  nvme /dev/nvme0 4 5 95 3 71
+} > "$TMP/smart-bad.json"
+run_dh env FAKE_SMART="$TMP/smart-bad.json"
+want="cache (Fast NVMe, S-nvme0): NVMe critical warning 0x04; 3 media errors; spare capacity is below its threshold; 90% of its rated life used or more; temperature at or above 70 °C
+parity (Bad HDD, S-sdd): the SMART health check FAILED; 8 reallocated sectors; 2 sectors waiting to be reallocated; Raw_Read_Error_Rate is below its threshold; temperature at or above 55 °C
+pool (Worn SSD, S-sdb): 10% of its life left or less"
+if [ "$rc" = 1 ] && [ "$out" = "$want" ]; then pass "failing disks are reported by Unraid name, one line each"; else fail "disk-health report wrong: rc=$rc
+$out"; fi
+case "$out" in *sde* | *sdf*) fail "a sleeping or a healthy disk was reported" ;; *) pass "a sleeping disk, and an SSD at a temperature fine for an SSD, are not reported" ;; esac
+
+: > "$TMP/smart-none.json"
+run_dh env FAKE_SMART="$TMP/smart-none.json"
+if [ "$rc" = 0 ] && [ -z "$out" ]; then pass "no disks with SMART data is quiet"; else fail "disk-health with no disks: rc=$rc $out"; fi
+run_dh env FAKE_SMART="$TMP/smart-none.json" FAKE_SMART_ERR="sh: smartctl: not found"
+if [ "$rc" = 0 ] && [ -z "$out" ]; then pass "a host without smartctl is quiet"; else fail "disk-health without smartctl: rc=$rc $out"; fi
+run_dh env FAKE_SMART="$TMP/smart-none.json" FAKE_SMART_ERR="docker: Cannot connect to the Docker daemon"
+if [ "$rc" = 1 ] && [[ $out == *"could not read SMART data"*"Cannot connect"* ]]; then pass "a failed host call is reported"; else fail "disk-health hid a failed host call: rc=$rc $out"; fi
+echo '{"smartctl":{"exit_status":2,"messages":[{"string":"Smartctl open device: /dev/sdg failed: No such device","severity":"error"}]},"device":{"name":"/dev/sdg","type":"sat"}}' > "$TMP/smart-gone.json"
+run_dh env FAKE_SMART="$TMP/smart-gone.json"
+if [ "$rc" = 1 ] && [ "$out" = "/dev/sdg: SMART data could not be read" ]; then pass "a disk that does not answer is reported"; else fail "disk-health on a disk that does not answer: rc=$rc $out"; fi
+
 # ── Template change log from the release notes ───────────────────────────────
 echo "template change log"
 CHANGES="$ROOT/platforms/unraid/template-changes.sh"
