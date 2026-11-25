@@ -237,3 +237,9 @@ the approval request. Do not try to run a new script
 yourself to "activate" it, and never edit the bridge's own state under
 `~/.claude/bridge/`. The owner can list tasks with `/tasks` and run one with
 `/run <name>`. Examples to copy from: `/usr/local/share/berthward/task-examples/`.
+
+`/run <name> <words>` hands the words to a script task as arguments (`"$@"`);
+scheduled runs get none, and a run with arguments is not recorded. When a
+script stores readings between runs (a counter to compare with next time),
+give it a `--dry-run` argument that reports without storing anything, and
+make it fail with a clear message on an argument it does not know.

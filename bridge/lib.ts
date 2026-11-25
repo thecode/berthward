@@ -385,3 +385,27 @@ export function decideNotice(
 export function isQuietAnswer(text: string): boolean {
   return /^\s*ok\.?\s*$/i.test(text)
 }
+
+/** The most `/run` passes on to a task's script. */
+export const RUN_ARGS_MAX = 10
+export const RUN_ARG_LENGTH_MAX = 100
+
+/**
+ * What follows `/run`: the task's name, then words handed to its script as
+ * arguments. Words are split at spaces and nothing else: there is no quoting,
+ * and the words never pass through a shell. Throws with a message meant for
+ * the user.
+ *
+ * A slash command pasted or typed as plain text carries its field labels
+ * (`/run disk-health arguments: --report`, `/run name:disk-health
+ * arguments:--report`); the labels are dropped.
+ */
+export function parseRunRequest(text: string): { name: string; args: string[] } {
+  const unlabelled = text.trim().replace(/^name:\s*/i, '').replace(/^(\S+\s+)arguments:\s*/i, '$1')
+  const [name = '', ...args] = unlabelled.split(/\s+/).filter(Boolean)
+  if (args.length > RUN_ARGS_MAX) throw new Error(`At most ${RUN_ARGS_MAX} arguments can be passed to a task.`)
+  if (args.some(a => a.length > RUN_ARG_LENGTH_MAX)) throw new Error(`An argument can be at most ${RUN_ARG_LENGTH_MAX} characters.`)
+  // Printable ASCII only: the words are shown back on Discord and land in a script.
+  if (args.some(a => !/^[\x21-\x7e]+$/.test(a))) throw new Error('Arguments can only hold plain letters, digits and punctuation.')
+  return { name: name.toLowerCase(), args }
+}

@@ -98,6 +98,31 @@ minutes.
 |---|---|
 | `/tasks` | List the tasks with their schedule and last result |
 | `/run <name>` | Run one now. You always get an answer, also when all is well |
+| `/run <name> <arguments>` | Run a script task now with arguments, for example `--dry-run` |
+
+### Arguments
+
+Words after the task's name are handed to `check.sh` as its arguments
+(`$1`, `$2`, … in the script). What they mean is up to the script: a task
+that keeps its own readings between runs can take `--dry-run` to report
+without storing a new reading, another can take a different limit for one
+run. A script that does not look at its arguments ignores them.
+
+- A run with arguments is answered and then forgotten: it does not count as
+  the task's last run, and it changes nothing about which alerts the
+  scheduled runs send.
+- Scheduled runs never get arguments.
+- Words are split at spaces; there is no quoting. Up to 10 words of plain
+  letters, digits and punctuation.
+- Only script tasks take arguments.
+- When you pick `/run` from Discord's command list, the words go in its
+  `arguments` field: choose the task, then press Tab or click `arguments`.
+  Discord drops words typed after the task's name there. Typed or pasted as
+  a plain message (`/run disk-health --report`, `!run disk-health --report`)
+  they simply follow the name.
+
+To give an existing task an option, ask Claude to add it. That changes the
+script, so it needs your approval again.
 
 ## The examples
 
@@ -110,6 +135,9 @@ A new install starts with three tasks, waiting for your approval:
   near the end of its rated life, or a disk running too hot. A disk that is
   spun down is left asleep and skipped. The limits are at the top of the
   script; it is written in Python inside `check.sh`, as an example of that.
+  `/run disk-health --report` shows every disk with the values the check
+  judges, the sleeping disks it skipped and the limits, as an example of a
+  task that takes an argument.
   An install from before 0.1.0-beta.8 does not get it by itself: ask Claude
   to copy it from `/usr/local/share/berthward/task-examples/disk-health`.
 - **`daily-digest`** (prompt, 08:00): a short morning status of storage,

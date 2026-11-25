@@ -370,3 +370,66 @@ describe('housekeeping', () => {
     expect(t.posts.at(-1)!.text).toContain('still failing')
   })
 })
+
+describe('a run with arguments', () => {
+  async function approved(script: string) {
+    const t = setup()
+    t.write('disk', '0 * * * *', { script })
+    t.tasks.tick(TEN)
+    await t.until(() => t.posts.length === 1)
+    t.approve()
+    return t
+  }
+
+  test('the script gets the words as its arguments, each one whole', async () => {
+    const t = await approved('for a in "$@"; do echo "[$a]"; done\n')
+    expect(await t.tasks.runNow('disk', ['--dry-run', '$(id)', ';ls'])).toBe('▶️ Running `disk` with `--dry-run $(id) ;ls`…')
+    await t.until(() => t.posts.length === 2)
+    expect(t.posts[1].text).toBe('📋 **disk** (with `--dry-run $(id) ;ls`)\n```\n[--dry-run]\n[$(id)]\n[;ls]\n```')
+  })
+
+  test('a scheduled run and a plain /run get no arguments', async () => {
+    const t = await approved('echo "count=$#"\n')
+    await t.tickAndRun('disk', ELEVEN)
+    expect(t.posts.at(-1)!.text).toContain('count=0')
+    await t.tasks.runNow('disk')
+    await t.until(() => t.posts.length === 3)
+    expect(t.posts.at(-1)!.text).toContain('count=0')
+  })
+
+  test('it is not recorded, so the scheduled runs alert as if it never happened', async () => {
+    // Fails on schedule, passes when asked for a dry run.
+    const t = await approved('[ "${1:-}" = --dry-run ] && exit 0; echo "disk 2 is failing"; exit 1\n')
+    await t.tickAndRun('disk', ELEVEN)
+    expect(t.posts.at(-1)!.text).toContain('🚨 **disk**')
+    const recorded = t.state().runs.disk
+
+    await t.tasks.runNow('disk', ['--dry-run'])
+    await t.until(() => t.posts.length === 3)
+    expect(t.posts[2].text).toBe('✅ **disk** (with `--dry-run`) ran: nothing to report.')
+    expect(t.state().runs.disk).toEqual(recorded)
+
+    await t.tickAndRun('disk', NOON)
+    expect(t.posts.length).toBe(3) // the same failure: no "back to normal", no second alert
+  })
+
+  test('a failure is shown as an alert', async () => {
+    const t = await approved('echo "no such option: $1" >&2; exit 2\n')
+    await t.tasks.runNow('disk', ['--nope'])
+    await t.until(() => t.posts.length === 2)
+    expect(t.posts[1].text).toBe('🚨 **disk** (with `--nope`)\n```\nno such option: --nope\n```')
+    expect(t.state().runs.disk).toBeUndefined()
+  })
+
+  test('a prompt task takes none', async () => {
+    const t = setup()
+    const d = join(t.tasksDir, 'digest')
+    mkdirSync(d)
+    writeFileSync(join(d, 'prompt.md'), 'how is the server')
+    writeFileSync(join(d, 'task.json'), JSON.stringify({ kind: 'prompt', schedule: '0 8 * * *' }))
+    t.tasks.tick(TEN)
+    await t.until(() => t.posts.length === 1)
+    t.approve()
+    expect(await t.tasks.runNow('digest', ['--dry-run'])).toContain('only a script task takes arguments')
+  })
+})
