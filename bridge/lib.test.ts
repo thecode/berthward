@@ -14,6 +14,8 @@ import {
   parseAccess,
   parseCron,
   parseIds,
+  parseRunRequest,
+  runSuggestions,
   parseSessionHours,
   parseStreamLine,
   parseTaskConfig,
@@ -303,4 +305,24 @@ describe('decideNotice', () => {
 test('isQuietAnswer', () => {
   for (const s of ['OK', 'ok', ' Ok. \n']) expect(isQuietAnswer(s)).toBe(true)
   for (const s of ['OK, but disk 2 is warm', 'All good', '']) expect(isQuietAnswer(s)).toBe(false)
+})
+
+test('parseRunRequest', () => {
+  expect(parseRunRequest('Disk-Health')).toEqual({ name: 'disk-health', args: [] })
+  expect(parseRunRequest('  ssd-writes   --dry-run  Limit=5 ')).toEqual({ name: 'ssd-writes', args: ['--dry-run', 'Limit=5'] })
+  expect(parseRunRequest('')).toEqual({ name: '', args: [] })
+  expect(() => parseRunRequest('t ' + 'a '.repeat(11))).toThrow('At most 10 arguments')
+  expect(() => parseRunRequest('t ' + 'x'.repeat(101))).toThrow('at most 100 characters')
+  expect(() => parseRunRequest('t café')).toThrow('plain letters')
+})
+
+test('runSuggestions', () => {
+  const names = ['disk-health', 'pool-health', 'ssd-writes']
+  expect(runSuggestions(names, '')).toEqual(names)
+  expect(runSuggestions(names, 'Health')).toEqual(['disk-health', 'pool-health'])
+  // Arguments typed after the name stay on the suggestion.
+  expect(runSuggestions(names, 'disk-health --dry-run')).toEqual(['disk-health --dry-run'])
+  expect(runSuggestions(names, 'health  --dry-run -v')).toEqual(['disk-health --dry-run -v', 'pool-health --dry-run -v'])
+  expect(runSuggestions(names, 'nope --dry-run')).toEqual([])
+  expect(runSuggestions(names, 'disk-health ' + 'x'.repeat(100))).toEqual([])
 })

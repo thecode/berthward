@@ -3,7 +3,9 @@
 // A task is a folder <tasks dir>/<name>/ with:
 //   task.json   {"kind": "script" | "prompt", "schedule": "<cron>", ...}
 //   check.sh    for a script task: exit 0 and no output = quiet; exit 0 with
-//               output = a report; any other exit = an alert (output attached)
+//               output = a report; any other exit = an alert (output attached).
+//               `/run <name> <words>` hands the words to it as arguments; a
+//               scheduled run has none
 //   prompt.md   for a prompt task: a question for Claude, run headless with
 //               no one to ask (anything that would need permission is denied);
 //               the answer is posted unless it is exactly "OK"
@@ -71,6 +73,11 @@ const PROMPT_TASK_SYSTEM = [
 ].join('\n')
 
 const MAX_OUTPUT = 6000
+
+/** A run's arguments as shown on Discord. */
+function shownArgs(args: string[]): string {
+  return '`' + args.join(' ').replace(/`/g, "'") + '`'
+}
 
 export class Tasks {
   private state: TasksState
@@ -249,16 +256,16 @@ export class Tasks {
         if (this.state.asked[t.name] !== t.hash) void this.askApproval(t)
         continue
       }
-      if (cronMatches(t.config.cron, now)) this.start(t, false)
+      if (cronMatches(t.config.cron, now)) this.start(t, false, [])
     }
   }
 
-  private start(t: Task, manual: boolean): void {
+  private start(t: Task, manual: boolean, args: string[]): void {
     if (this.runningNow.has(t.name)) return
     this.runningNow.add(t.name)
     const job = async () => {
       try {
-        await this.run(t, manual)
+        await this.run(t, manual, args)
       } catch (e) {
         this.host.log(`task ${t.name}: ${e instanceof Error ? e.stack : e}`)
       } finally {
@@ -296,11 +303,11 @@ export class Tasks {
     return { stdout, stderr, code, timedOut }
   }
 
-  private async run(t: Task, manual: boolean): Promise<void> {
+  private async run(t: Task, manual: boolean, args: string[]): Promise<void> {
     let ok: boolean
     let output: string
     if (t.config.kind === 'script') {
-      const r = await this.exec(['bash', 'check.sh'], t.dir, { TASK_NAME: t.name, TASK_DIR: t.dir }, null, t.config.timeout)
+      const r = await this.exec(['bash', 'check.sh', ...args], t.dir, { TASK_NAME: t.name, TASK_DIR: t.dir }, null, t.config.timeout)
       ok = r.code === 0 && !r.timedOut
       output = (r.stdout + (ok ? '' : r.stderr)).trim()
       if (r.timedOut) output = `Timed out after ${t.config.timeout} s.\n${output}`.trim()
@@ -336,6 +343,17 @@ export class Tasks {
 
     const now = Date.now()
     const prev = this.state.runs[t.name]
+    // A run with arguments is a different run from the scheduled one (a dry
+    // run, another limit), so it is answered and then forgotten: recording it
+    // would make the next scheduled run look like a change or a recovery.
+    if (args.length > 0) {
+      const title = `**${t.name}** (with ${shownArgs(args)})`
+      const text = output ? '\n```\n' + output.replace(/```/g, '`​``') + '\n```' : ''
+      if (!ok) await this.host.post(`🚨 ${title}${text}`)
+      else if (output) await this.host.post(`📋 ${title}${text}`)
+      else await this.host.post(`✅ ${title} ran: nothing to report.`)
+      return
+    }
     const notice = manual ? (ok ? (output ? 'report' : null) : 'alert') : decideNotice(prev, { ok, output }, now, t.config.remind)
     // A script's output is plain text; Claude's answer is already Discord markdown.
     const shown = t.config.kind === 'script' && output ? '```\n' + output.replace(/```/g, '`\u200b``') + '\n```' : output
@@ -362,17 +380,20 @@ export class Tasks {
     this.save()
   }
 
-  /** `/run <name>` */
-  async runNow(name: string): Promise<string | null> {
+  /** `/run <name> [arguments for the script]` */
+  async runNow(name: string, args: string[] = []): Promise<string | null> {
     const t = this.scan().find(x => x.name === name)
     if (!t) return `There is no task \`${name}\`. \`/tasks\` lists them.`
     if (!this.isApproved(t)) {
       await this.askApproval(t)
       return null
     }
+    if (args.length > 0 && t.config.kind !== 'script') {
+      return `\`${name}\` is a prompt task; only a script task takes arguments.`
+    }
     if (this.runningNow.has(name)) return `\`${name}\` is already running.`
-    this.start(t, true)
-    return `▶️ Running \`${name}\`…`
+    this.start(t, true, args)
+    return `▶️ Running \`${name}\`${args.length > 0 ? ` with ${shownArgs(args)}` : ''}…`
   }
 
   /** Names of the usable tasks, for command autocomplete. */

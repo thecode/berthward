@@ -805,7 +805,8 @@ nvme() { # nvme <device> <critical warning> <spare> <percentage used> <media err
 }
 asleep='{"smartctl":{"exit_status":2,"messages":[{"string":"Device is in STANDBY mode, exit(2)","severity":"information"}]},"device":{"name":"/dev/sde","type":"sat"}}'
 attr() { printf '{"id":%s,"name":"%s","value":%s,"thresh":0,"when_failed":"%s","raw":{"value":%s}}' "$1" "$2" "$3" "${5:-}" "$4"; }
-run_dh() { rc=0; out=$(PATH="$TMP/dhbin:$PATH" "$@" bash "$DISK_HEALTH" 2>&1) || rc=$?; }
+# DH_ARGS: the words `/run disk-health <words>` would pass.
+run_dh() { rc=0; out=$(PATH="$TMP/dhbin:$PATH" "$@" bash "$DISK_HEALTH" ${DH_ARGS:+"$DH_ARGS"} 2>&1) || rc=$?; }
 
 {
   ata /dev/sdb "Good SSD" 0 true 40 "[$(attr 5 Reallocated_Sector_Ct 100 0),$(attr 199 UDMA_CRC_Error_Count 100 6),$(attr 202 Percent_Lifetime_Remain 93 7)]"
@@ -841,6 +842,25 @@ if [ "$rc" = 1 ] && [[ $out == *"could not read SMART data"*"Cannot connect"* ]]
 echo '{"smartctl":{"exit_status":2,"messages":[{"string":"Smartctl open device: /dev/sdg failed: No such device","severity":"error"}]},"device":{"name":"/dev/sdg","type":"sat"}}' > "$TMP/smart-gone.json"
 run_dh env FAKE_SMART="$TMP/smart-gone.json"
 if [ "$rc" = 1 ] && [ "$out" = "/dev/sdg: SMART data could not be read" ]; then pass "a disk that does not answer is reported"; else fail "disk-health on a disk that does not answer: rc=$rc $out"; fi
+
+# --report: every disk with the values that are judged.
+DH_ARGS=--report run_dh env FAKE_SMART="$TMP/smart-good.json"
+want="cache (Fast NVMe, S-nvme0): SMART check passed, 44 °C, 12% of its rated life used, 0 media errors, 100% spare capacity
+disk1: asleep, not checked
+parity (Good HDD, S-sdd): SMART check passed, 38 °C, 0 reallocated sectors, 0 sectors waiting to be reallocated
+pool (Good SSD, S-sdb): SMART check passed, 40 °C, 0 reallocated sectors, 93% of its life left
+
+Limits: "
+if [ "$rc" = 0 ] && [[ $out == "$want"* ]]; then pass "--report lists every disk with its values, a sleeping one as skipped"; else fail "disk-health --report wrong: rc=$rc
+$out"; fi
+case "$out" in *"reallocated sectors above 0"*"55 °C (hard disk) or 70 °C (SSD)."*) pass "--report ends with the limits" ;; *) fail "--report does not show the limits: $out" ;; esac
+DH_ARGS=--report run_dh env FAKE_SMART="$TMP/smart-bad.json"
+if [ "$rc" = 1 ] && [[ $out == *"ATTENTION parity (Bad HDD, S-sdd): SMART check FAILED, 57 °C, 8 reallocated sectors"*"Needs attention:"*"parity (Bad HDD, S-sdd): the SMART health check FAILED; 8 reallocated sectors"* ]]; then pass "--report on failing disks is still an alert and names them"; else fail "disk-health --report with failing disks: rc=$rc
+$out"; fi
+DH_ARGS=--report run_dh env FAKE_SMART="$TMP/smart-none.json"
+if [ "$rc" = 0 ] && [ "$out" = "No disk with SMART data was found." ]; then pass "--report with no disks says so"; else fail "disk-health --report with no disks: rc=$rc $out"; fi
+DH_ARGS=--wake run_dh env FAKE_SMART="$TMP/smart-good.json"
+if [ "$rc" = 2 ] && [[ $out == *"unknown argument --wake"* ]]; then pass "an unknown argument is refused"; else fail "disk-health with an unknown argument: rc=$rc $out"; fi
 
 # ── Template change log from the release notes ───────────────────────────────
 echo "template change log"

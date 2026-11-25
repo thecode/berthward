@@ -390,6 +390,26 @@ describe('tasks', () => {
     expect(call.args.join(' ')).toContain('--permission-prompts none')
   })
 
+  test('words after the name reach the script, from the slash command and from "!run"', async () => {
+    writeTask('echo-args', { kind: 'script', schedule: '0 3 * * *' }, 'check.sh', 'echo "got: $*"\n')
+    const marker = discord.say('!run echo-args')
+    const request = await discord.until(() => discord.botSaid('Task `echo-args`** is new', marker))
+    discord.click(request, 'Approve')
+    await discord.until(() => request.content.includes('approved by'))
+
+    discord.slash('run', { name: 'echo-args', arguments: '--dry-run' })
+    expect((await discord.until(() => discord.botSaid('📋 **echo-args** (with `--dry-run`)'))).content).toContain('got: --dry-run')
+    // A result is posted a moment before its run counts as finished.
+    await Bun.sleep(300)
+    // Typed after the name in the name field: the suggestion keeps the words.
+    expect(await discord.autocomplete('run', 'name', 'echo-args --quick')).toEqual(['echo-args --quick'])
+    discord.slash('run', { name: 'echo-args --quick' })
+    expect((await discord.until(() => discord.botSaid('📋 **echo-args** (with `--quick`)'))).content).toContain('got: --quick')
+    await Bun.sleep(300)
+    discord.say('!run echo-args --limit 5')
+    expect((await discord.until(() => discord.botSaid('📋 **echo-args** (with `--limit 5`)'))).content).toContain('got: --limit 5')
+  })
+
   test('an unknown task name is answered, not run', async () => {
     await ask('!run nope', 'There is no task `nope`')
   })

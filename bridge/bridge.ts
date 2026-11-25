@@ -49,6 +49,8 @@ import {
   minutes,
   parseAccess,
   parseIds,
+  parseRunRequest,
+  runSuggestions,
   parseSessionHours,
   parseStreamLine,
   safeFileName,
@@ -791,9 +793,17 @@ const COMMANDS: Array<{ name: string; usage?: string; description: string; optio
   { name: 'tasks', description: 'List the scheduled tasks' },
   {
     name: 'run',
-    usage: 'run <name>',
+    usage: 'run <name> [arguments]',
     description: 'Run one task now',
-    options: [{ type: STRING_OPTION, name: 'name', description: 'Task name', required: true, autocomplete: true }],
+    options: [
+      { type: STRING_OPTION, name: 'name', description: 'Task name; words after it go to a script task', required: true, autocomplete: true },
+      {
+        type: STRING_OPTION,
+        name: 'arguments',
+        description: 'Words handed to a script task, e.g. --dry-run. Such a run is not recorded',
+        required: false,
+      },
+    ],
   },
   {
     name: 'login',
@@ -877,7 +887,14 @@ async function runCommand(name: string, arg: string, ctx: CommandContext): Promi
         await ctx.reply('Which task? `/run <name>`; `/tasks` lists them.')
         return true
       }
-      const answer = await tasks.runNow(arg.toLowerCase())
+      let request: { name: string; args: string[] }
+      try {
+        request = parseRunRequest(arg)
+      } catch (e) {
+        await ctx.reply(e instanceof Error ? e.message : String(e))
+        return true
+      }
+      const answer = await tasks.runNow(request.name, request.args)
       await ctx.reply(answer ?? 'That task needs your approval first; see the request above.')
       return true
     }
@@ -1024,7 +1041,7 @@ async function onSlash(i: ChatInputCommandInteraction): Promise<void> {
   }
   const arg =
     i.commandName === 'run'
-      ? (i.options.getString('name') ?? '')
+      ? `${i.options.getString('name') ?? ''} ${i.options.getString('arguments') ?? ''}`
       : i.commandName === 'code'
         ? (i.options.getString('code') ?? '')
         : i.commandName === 'login'
@@ -1040,9 +1057,8 @@ async function onAutocomplete(i: AutocompleteInteraction): Promise<void> {
     await i.respond([]).catch(() => {})
     return
   }
-  const typed = i.options.getFocused().toLowerCase()
-  const names = tasks.names().filter(n => n.includes(typed)).slice(0, 25)
-  await i.respond(names.map(n => ({ name: n, value: n }))).catch(() => {})
+  const suggestions = runSuggestions(tasks.names(), i.options.getFocused())
+  await i.respond(suggestions.map(n => ({ name: n, value: n }))).catch(() => {})
 }
 
 /**

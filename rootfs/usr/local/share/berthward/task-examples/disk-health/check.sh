@@ -14,7 +14,11 @@
 # accepted by raising its limit; the changed script then asks for approval
 # again. The wording of a problem only changes when the problem does, so the
 # same alert is not posted over and over.
-exec python3 - <<'PY'
+#
+# `/run disk-health --report` shows what the check saw: one line for every
+# disk with the values it judges, the sleeping disks listed as skipped, and
+# the limits. It reads nothing more than a normal run and wakes no disk.
+exec python3 - "$@" <<'PY'
 import json
 import re
 import subprocess
@@ -125,29 +129,86 @@ def problems_of(doc):
     return found
 
 
+def seen_in(doc):
+    """The values problems_of() judges, for --report."""
+    seen = []
+    passed = doc.get("smart_status", {}).get("passed")
+    if passed is not None:
+        seen.append("SMART check passed" if passed else "SMART check FAILED")
+    temperature = doc.get("temperature", {}).get("current")
+    if temperature is not None:
+        seen.append(f"{temperature} °C")
+
+    rotating = (doc.get("rotation_rate") or 0) > 0
+    life = []  # some SSDs report it in more than one attribute: the lowest counts
+    for attr in doc.get("ata_smart_attributes", {}).get("table", []):
+        number, name = attr.get("id"), attr.get("name", "")
+        if number in ATA_COUNTERS:
+            seen.append(f"{attr.get('raw', {}).get('value', 0)} {ATA_COUNTERS[number][0]}")
+        if not rotating and number in SSD_LIFE_ATTRS and re.search("life|wear", name, re.I):
+            life.append(attr.get("value", 100))
+    if life:
+        seen.append(f"{min(life)}% of its life left")
+
+    nvme = doc.get("nvme_smart_health_information_log")
+    if nvme:
+        seen.append(f"{nvme.get('percentage_used', 0)}% of its rated life used")
+        seen.append(f"{nvme.get('media_errors', 0)} media errors")
+        if "available_spare" in nvme:
+            seen.append(f"{nvme['available_spare']}% spare capacity")
+    return seen
+
+
+LIMITS = (
+    "Limits: "
+    + ", ".join(f"{what} above {limit}" for what, limit in ATA_COUNTERS.values())
+    + f"; SSD life left {SSD_LIFE_MIN}% or less; NVMe life used {NVME_USED_MAX}% or more;"
+    + f" NVMe media errors above {NVME_MEDIA_ERRORS_MAX}; {TEMP_MAX_HDD} °C (hard disk) or {TEMP_MAX_SSD} °C (SSD)."
+)
+
+# ── Arguments ────────────────────────────────────────────────────────────────
+# Only `/run disk-health <words>` passes any; a scheduled run has none.
+unknown = [a for a in sys.argv[1:] if a != "--report"]
+if unknown:
+    print(f"disk-health: unknown argument {unknown[0]}. The only one is --report.")
+    sys.exit(2)
+report = "--report" in sys.argv[1:]
+
 answer = host("sh", "-c", COLLECT)
 docs = list(documents(answer.stdout))
 if not docs:
     # No smartctl on this host, or no disk it can talk to: nothing to watch.
     if not answer.stderr.strip() or re.search("not found|no such file", answer.stderr, re.I):
+        if report:
+            print("No disk with SMART data was found.")
         sys.exit(0)
     print("disk-health: could not read SMART data:\n" + answer.stderr.strip())
     sys.exit(1)
 
 names = slots()
-lines = []
+lines = []    # the disks that need attention: what a normal run prints
+shown = []    # every disk: what --report prints
 for doc in docs:
     smartctl = doc.get("smartctl", {})
     messages = [m.get("string", "") for m in smartctl.get("messages", [])]
     if any(re.search("STANDBY|SLEEP", m) for m in messages):
+        shown.append(f"{label(doc, names)}: asleep, not checked")
         continue  # asleep: left alone
     if "smart_status" not in doc and smartctl.get("exit_status", 0) & 0b110:
         lines.append(f"{label(doc, names)}: SMART data could not be read")
+        shown.append("ATTENTION " + lines[-1])
         continue
     found = problems_of(doc)
     if found:
         lines.append(f"{label(doc, names)}: " + "; ".join(found))
+    shown.append(("ATTENTION " if found else "") + f"{label(doc, names)}: " + ", ".join(seen_in(doc) or ["no values to judge"]))
 
+if report:
+    print("\n".join(sorted(shown, key=lambda line: line.removeprefix("ATTENTION "))))
+    if lines:
+        print("\nNeeds attention:\n" + "\n".join(sorted(lines)))
+    print("\n" + LIMITS)
+    sys.exit(1 if lines else 0)
 if not lines:
     sys.exit(0)
 print("\n".join(sorted(lines)))
