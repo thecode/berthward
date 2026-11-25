@@ -50,7 +50,7 @@ COPY --from=dockercli /usr/local/bin/docker /usr/local/bin/docker
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       tini tmux git curl ca-certificates openssh-client \
-      ripgrep jq procps \
+      ripgrep jq procps python3 \
       iputils-ping traceroute dnsutils iproute2 netcat-openbsd \
     && apt-get clean && rm -rf /var/lib/apt/lists/* \
     # dnsutils brings a DNS lookup tool that is also called "host". Here that

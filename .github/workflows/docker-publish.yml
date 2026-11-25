@@ -78,6 +78,9 @@ jobs:
           docker run --rm berthward:smoke bash -c 'host; test $? -eq 64'
           # The network tools are there, and "host" is only the helper, not the DNS tool.
           docker run --rm berthward:smoke bash -c 'for t in ping traceroute dig nslookup nc ip ss; do command -v $t >/dev/null || { echo "missing: $t"; exit 1; }; done; test ! -e /usr/bin/host && test "$(command -v host)" = /usr/local/bin/host'
+          # Python for scripts and tasks: the standard library, and no pip.
+          docker run --rm berthward:smoke bash -c 'echo "[1, 2]" | python3 -c "import json, sys, datetime, subprocess; print(sum(json.load(sys.stdin)))" | grep -qx 3'
+          docker run --rm berthward:smoke bash -c '! command -v pip pip3'
           # The host helper container is started from this image and runs nsenter in place of the entrypoint.
           docker run --rm --no-healthcheck --entrypoint nsenter berthward:smoke --version
           docker run --rm berthward:smoke bash -c 'echo "{\"tool_input\":{\"command\":\"wipefs --help\"}}" | claude-guard; test $? -eq 2'
