@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   accepts,
   chunk,
+  cleanEscapes,
   cronMatches,
   decideNotice,
   describeAddress,
@@ -273,9 +274,36 @@ describe('task config', () => {
     expect(() => parseTaskConfig('{"kind":"script","schedule":"nope"}')).toThrow('schedule')
     expect(() => parseTaskConfig('{"kind":"script","schedule":"@hourly","timeout":99999}')).toThrow('"timeout"')
   })
+  test('highlight is one of a fixed list, and only for a script task', () => {
+    expect(parseTaskConfig('{"kind":"script","schedule":"@hourly"}').highlight).toBe('')
+    expect(parseTaskConfig('{"kind":"script","schedule":"@hourly","highlight":"diff"}').highlight).toBe('diff')
+    for (const bad of ['"bash"', '"diff\\n```"', '""', '7', 'null']) {
+      expect(() => parseTaskConfig(`{"kind":"script","schedule":"@hourly","highlight":${bad}}`)).toThrow('"highlight" must be one of diff, ansi')
+    }
+    expect(() => parseTaskConfig('{"kind":"prompt","schedule":"@hourly","highlight":"diff"}')).toThrow('script task')
+  })
   test('task names', () => {
     expect(TASK_NAME.test('pool-health')).toBe(true)
     for (const bad of ['', '../x', 'Pool', '-x', 'a b', 'x'.repeat(41)]) expect(TASK_NAME.test(bad)).toBe(false)
+  })
+})
+
+describe('cleanEscapes', () => {
+  const ESC = '\x1b'
+  test('text without escapes is left alone', () => {
+    expect(cleanEscapes('+ ok\n- bad [31m', true)).toBe('+ ok\n- bad [31m')
+  })
+  test('without colours, every sequence goes', () => {
+    expect(cleanEscapes(`${ESC}[1;31mhot${ESC}[0m ${ESC}[2Kdone`, false)).toBe('hot done')
+  })
+  test('with colours, only colour sequences stay', () => {
+    const text = `${ESC}[1;31mhot${ESC}[0m${ESC}[2J${ESC}[10;5H${ESC}]0;title\x07${ESC}]8;;http://x${ESC}\\link${ESC}c${ESC}(B`
+    expect(cleanEscapes(text, true)).toBe(`${ESC}[1;31mhot${ESC}[0mlink`)
+  })
+  test('a sequence cut short and a lone escape character go too', () => {
+    expect(cleanEscapes(`ok${ESC}[3\n… (cut)`, true)).toBe('ok\n… (cut)')
+    expect(cleanEscapes(`a${ESC}`, true)).toBe('a')
+    expect(cleanEscapes(`a${ESC}\nb`, true)).toBe('a\nb')
   })
 })
 

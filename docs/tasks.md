@@ -68,10 +68,29 @@ Folder names use lowercase letters, digits, `-` and `_`.
 | `enabled` | Optional, default `true`. `false` parks the task without deleting it |
 | `timeout` | Optional, seconds. A run that takes longer is stopped and reported |
 | `remind` | Optional, hours until a failure that has not changed is reported again. Default 24 |
+| `highlight` | Optional, script tasks only: `diff`, `ansi`, `json` or `yaml`. Colours the output on Discord, see below |
 
 A script runs inside the container as root, with `bash check.sh`. Use
 `host <command>` for host commands, keep it read-only, and make it print
 nothing when all is well.
+
+### Colour
+
+A script task's output is posted as a code block, in one colour. With
+`"highlight"` in `task.json`, Discord colours the block as that language:
+
+- **`diff`**: a line that starts with `+` is green, one that starts with `-`
+  is red. Works in Discord on a computer and on a phone, so it is the one to
+  use for "fine / not fine" lists. The `pool-health` and `disk-health`
+  examples use it.
+- **`ansi`**: the script chooses the colours itself, with the colour codes a
+  terminal uses (`printf '\033[31mred\033[0m\n'`). Discord on a computer
+  shows them; on a phone the text may come out plain.
+- **`json`**, **`yaml`**: for a script that prints one of these.
+
+Only colour codes are passed on, and only in an `ansi` block. Every other
+terminal code in a script's output is removed before it is posted, whatever
+the block.
 
 ## Approval
 
@@ -130,6 +149,8 @@ A new install starts with three tasks, waiting for your approval:
 
 - **`pool-health`** (script, every 15 minutes): alerts when a ZFS pool is not
   healthy, or when an array disk is missing, disabled or has errors.
+  `/run pool-health --report` shows every pool with its health and how full
+  it is, the array's state and every array disk.
 - **`disk-health`** (script, hourly): alerts when a disk's SMART data shows
   trouble: a failed health check, reallocated or unreadable sectors, an SSD
   near the end of its rated life, or a disk running too hot. A disk that is
@@ -140,6 +161,14 @@ A new install starts with three tasks, waiting for your approval:
   task that takes an argument.
   An install from before 0.1.0-beta.8 does not get it by itself: ask Claude
   to copy it from `/usr/local/share/berthward/task-examples/disk-health`.
+
+Both script examples colour their output (`"highlight": "diff"`): a line for
+something that is fine starts with `+`, one that needs attention with `-`
+followed by 🔴 for a fault or 🟡 for a warning, faults first.
+
+An update never changes a task you already have. To get the newer version of
+an example, ask Claude to copy it from
+`/usr/local/share/berthward/task-examples/`, then approve it.
 - **`daily-digest`** (prompt, 08:00): a short morning status of storage,
   containers, VMs and load.
 

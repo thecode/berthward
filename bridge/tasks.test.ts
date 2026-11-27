@@ -36,10 +36,10 @@ function setup() {
   })
 
   /** A script task whose output and exit status come from two files, so they can change without changing the task. */
-  const write = (name: string, schedule: string, opts: { enabled?: boolean; script?: string } = {}) => {
+  const write = (name: string, schedule: string, opts: { enabled?: boolean; script?: string; highlight?: string } = {}) => {
     const d = join(tasksDir, name)
     mkdirSync(d, { recursive: true })
-    writeFileSync(join(d, 'task.json'), JSON.stringify({ kind: 'script', schedule, enabled: opts.enabled ?? true }))
+    writeFileSync(join(d, 'task.json'), JSON.stringify({ kind: 'script', schedule, enabled: opts.enabled ?? true, highlight: opts.highlight }))
     writeFileSync(join(d, 'check.sh'), opts.script ?? 'cat out 2>/dev/null; exit "$(cat code 2>/dev/null || echo 0)"\n')
     return d
   }
@@ -431,5 +431,52 @@ describe('a run with arguments', () => {
     await t.until(() => t.posts.length === 1)
     t.approve()
     expect(await t.tasks.runNow('digest', ['--dry-run'])).toContain('only a script task takes arguments')
+  })
+})
+
+describe('the output block', () => {
+  // printf turns \033 into the escape character, so the scripts stay readable.
+  const COLOURS = String.raw`printf '\033[31mdisk 2\033[0m is \033[2Kfailing\n'; exit "$(cat code 2>/dev/null || echo 0)"` + '\n'
+
+  async function approved(script: string, highlight?: string) {
+    const t = setup()
+    t.write('disk', '0 * * * *', { script, highlight })
+    t.tasks.tick(TEN)
+    await t.until(() => t.posts.length === 1)
+    t.approve()
+    return t
+  }
+
+  test('carries the language task.json names, on a schedule and with arguments', async () => {
+    const t = await approved('echo "+ disk 1 ok"; echo "- disk 2 failing"\n', 'diff')
+    await t.tickAndRun('disk', ELEVEN)
+    expect(t.posts.at(-1)!.text).toBe('📋 **disk**\n```diff\n+ disk 1 ok\n- disk 2 failing\n```')
+    await t.tasks.runNow('disk', ['--report'])
+    await t.until(() => t.posts.length === 3)
+    expect(t.posts[2].text).toBe('📋 **disk** (with `--report`)\n```diff\n+ disk 1 ok\n- disk 2 failing\n```')
+  })
+
+  test('an alert carries it too', async () => {
+    const t = await approved('echo "- disk 2 failing"; exit 1\n', 'diff')
+    await t.tickAndRun('disk', ELEVEN)
+    expect(t.posts.at(-1)!.text).toBe('🚨 **disk**\n```diff\n- disk 2 failing\n```')
+  })
+
+  test('an ansi block keeps colours and nothing else', async () => {
+    const t = await approved(COLOURS, 'ansi')
+    await t.tickAndRun('disk', ELEVEN)
+    expect(t.posts.at(-1)!.text).toBe('📋 **disk**\n```ansi\n\x1b[31mdisk 2\x1b[0m is failing\n```')
+  })
+
+  test('any other block loses every escape sequence', async () => {
+    const t = await approved(COLOURS)
+    await t.tickAndRun('disk', ELEVEN)
+    expect(t.posts.at(-1)!.text).toBe('📋 **disk**\n```\ndisk 2 is failing\n```')
+  })
+
+  test('the output cannot end the block', async () => {
+    const t = await approved("echo '```'; echo '**bold**'\n", 'diff')
+    await t.tickAndRun('disk', ELEVEN)
+    expect(t.posts.at(-1)!.text.match(/```/g)?.length).toBe(2)
   })
 })
