@@ -18,6 +18,10 @@
 # `/run disk-health --report` shows what the check saw: one line for every
 # disk with the values it judges, the sleeping disks listed as skipped, and
 # the limits. It reads nothing more than a normal run and wakes no disk.
+#
+# The lines are written for `"highlight": "diff"` in task.json: Discord shows
+# a line that starts with "+" in green and one that starts with "-" in red.
+# 🔴 marks a fault and 🟡 a warning; faults come first.
 exec python3 - "$@" <<'PY'
 import json
 import re
@@ -93,39 +97,43 @@ def label(doc, names):
     return f"{slot or device} ({details})" if details else (slot or device)
 
 
+RED, YELLOW = "🔴", "🟡"  # fault / warning
+
+
 def problems_of(doc):
+    """(marker, text) for each problem; a fault is RED, a warning YELLOW."""
     found = []
     if doc.get("smart_status", {}).get("passed") is False:
-        found.append("the SMART health check FAILED")
+        found.append((RED, "the SMART health check FAILED"))
 
     rotating = (doc.get("rotation_rate") or 0) > 0
     for attr in doc.get("ata_smart_attributes", {}).get("table", []):
         number, name = attr.get("id"), attr.get("name", "")
         if attr.get("when_failed") == "now":
-            found.append(f"{name} is below its threshold")
+            found.append((RED, f"{name} is below its threshold"))
         if number in ATA_COUNTERS:
             what, limit = ATA_COUNTERS[number]
             count = attr.get("raw", {}).get("value", 0)
             if count > limit:
-                found.append(f"{count} {what}")
+                found.append((RED, f"{count} {what}"))
         if not rotating and number in SSD_LIFE_ATTRS and re.search("life|wear", name, re.I):
             if attr.get("value", 100) <= SSD_LIFE_MIN:
-                found.append(f"{SSD_LIFE_MIN}% of its life left or less")
+                found.append((YELLOW, f"{SSD_LIFE_MIN}% of its life left or less"))
 
     nvme = doc.get("nvme_smart_health_information_log")
     if nvme:
         if nvme.get("critical_warning"):
-            found.append(f"NVMe critical warning {nvme['critical_warning']:#04x}")
+            found.append((RED, f"NVMe critical warning {nvme['critical_warning']:#04x}"))
         if nvme.get("media_errors", 0) > NVME_MEDIA_ERRORS_MAX:
-            found.append(f"{nvme['media_errors']} media errors")
+            found.append((RED, f"{nvme['media_errors']} media errors"))
         if nvme.get("available_spare", 100) < nvme.get("available_spare_threshold", 0):
-            found.append("spare capacity is below its threshold")
+            found.append((RED, "spare capacity is below its threshold"))
         if nvme.get("percentage_used", 0) >= NVME_USED_MAX:
-            found.append(f"{NVME_USED_MAX}% of its rated life used or more")
+            found.append((YELLOW, f"{NVME_USED_MAX}% of its rated life used or more"))
 
     limit = TEMP_MAX_HDD if rotating else TEMP_MAX_SSD
     if doc.get("temperature", {}).get("current", 0) >= limit:
-        found.append(f"temperature at or above {limit} °C")
+        found.append((YELLOW, f"temperature at or above {limit} °C"))
     return found
 
 
@@ -182,35 +190,44 @@ if not docs:
         if report:
             print("No disk with SMART data was found.")
         sys.exit(0)
-    print("disk-health: could not read SMART data:\n" + answer.stderr.strip())
+    print(f"- {YELLOW} disk-health: could not read SMART data:\n" + answer.stderr.strip())
     sys.exit(1)
 
 names = slots()
 lines = []    # the disks that need attention: what a normal run prints
-shown = []    # every disk: what --report prints
+shown = []    # every disk, as (name, line): what --report prints
 for doc in docs:
+    name = label(doc, names)
     smartctl = doc.get("smartctl", {})
     messages = [m.get("string", "") for m in smartctl.get("messages", [])]
     if any(re.search("STANDBY|SLEEP", m) for m in messages):
-        shown.append(f"{label(doc, names)}: asleep, not checked")
+        shown.append((name, f"  {name}: asleep, not checked"))
         continue  # asleep: left alone
     if "smart_status" not in doc and smartctl.get("exit_status", 0) & 0b110:
-        lines.append(f"{label(doc, names)}: SMART data could not be read")
-        shown.append("ATTENTION " + lines[-1])
+        lines.append(f"- {YELLOW} {name}: SMART data could not be read")
+        shown.append((name, lines[-1]))
         continue
     found = problems_of(doc)
+    mark = "+"
     if found:
-        lines.append(f"{label(doc, names)}: " + "; ".join(found))
-    shown.append(("ATTENTION " if found else "") + f"{label(doc, names)}: " + ", ".join(seen_in(doc) or ["no values to judge"]))
+        mark = "- " + (RED if any(m == RED for m, _ in found) else YELLOW)
+        lines.append(f"{mark} {name}: " + "; ".join(text for _, text in found))
+    shown.append((name, f"{mark} {name}: " + ", ".join(seen_in(doc) or ["no values to judge"])))
 
+
+def faults_first(line):
+    return (RED not in line.split(" ", 2)[1], line)
+
+
+lines.sort(key=faults_first)
 if report:
-    print("\n".join(sorted(shown, key=lambda line: line.removeprefix("ATTENTION "))))
+    print("\n".join(line for _, line in sorted(shown)))
     if lines:
-        print("\nNeeds attention:\n" + "\n".join(sorted(lines)))
+        print("\nNeeds attention:\n" + "\n".join(lines))
     print("\n" + LIMITS)
     sys.exit(1 if lines else 0)
 if not lines:
     sys.exit(0)
-print("\n".join(sorted(lines)))
+print("\n".join(lines))
 sys.exit(1)
 PY

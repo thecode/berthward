@@ -228,6 +228,14 @@ A task folder holds `task.json` plus one file:
 `@daily` also work). Optional keys: `enabled` (default true), `timeout` in
 seconds, `remind` in hours. Folder names are lowercase letters, digits, `-`, `_`.
 
+A script task's output is posted as one plain code block. `"highlight"` in
+`task.json` (script tasks only) makes Discord colour it: `diff` colours lines
+that start with `+` green and with `-` red, on every device; `ansi` shows the
+terminal colour codes the script prints (`\033[31m` … `\033[0m`), but only in
+Discord on a computer; `json` and `yaml` are also accepted. Other escape
+sequences are removed. Use it when the owner asks for colour, and prefer
+`diff`.
+
 A new or changed task does not run until the owner approves its exact content
 with a button on Discord; the bridge asks within a minute of the change. So
 when asked for a task: write `check.sh` or `prompt.md` first and `task.json`

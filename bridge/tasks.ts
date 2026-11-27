@@ -19,6 +19,7 @@ import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
+  cleanEscapes,
   cronMatches,
   decideNotice,
   isQuietAnswer,
@@ -77,6 +78,17 @@ const MAX_OUTPUT = 6000
 /** A run's arguments as shown on Discord. */
 function shownArgs(args: string[]): string {
   return '`' + args.join(' ').replace(/`/g, "'") + '`'
+}
+
+/**
+ * A script's output as a code block, in the language its task.json names
+ * (`highlight`), if any. The output is whatever the script printed: a ``` in
+ * it must not end the block, and of its escape sequences only colours stay,
+ * and only where Discord renders them.
+ */
+function outputBlock(config: TaskConfig, output: string): string {
+  const text = cleanEscapes(output, config.highlight === 'ansi').replace(/```/g, '`​``')
+  return '```' + config.highlight + '\n' + text + '\n```'
 }
 
 export class Tasks {
@@ -348,7 +360,7 @@ export class Tasks {
     // would make the next scheduled run look like a change or a recovery.
     if (args.length > 0) {
       const title = `**${t.name}** (with ${shownArgs(args)})`
-      const text = output ? '\n```\n' + output.replace(/```/g, '`​``') + '\n```' : ''
+      const text = output ? '\n' + outputBlock(t.config, output) : ''
       if (!ok) await this.host.post(`🚨 ${title}${text}`)
       else if (output) await this.host.post(`📋 ${title}${text}`)
       else await this.host.post(`✅ ${title} ran: nothing to report.`)
@@ -356,7 +368,7 @@ export class Tasks {
     }
     const notice = manual ? (ok ? (output ? 'report' : null) : 'alert') : decideNotice(prev, { ok, output }, now, t.config.remind)
     // A script's output is plain text; Claude's answer is already Discord markdown.
-    const shown = t.config.kind === 'script' && output ? '```\n' + output.replace(/```/g, '`\u200b``') + '\n```' : output
+    const shown = t.config.kind === 'script' && output ? outputBlock(t.config, output) : output
     let delivered = true
     if (notice === 'alert') delivered = null !== await this.host.post(`🚨 **${t.name}**\n${shown}`)
     else if (notice === 'recovered') delivered = null !== await this.host.post(`✅ **${t.name}** is back to normal.${shown ? '\n' + shown : ''}`)

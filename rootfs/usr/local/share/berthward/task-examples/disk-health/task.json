@@ -3,5 +3,6 @@
   "schedule": "7 * * * *",
   "enabled": true,
   "timeout": 120,
-  "remind": 24
+  "remind": 24,
+  "highlight": "diff"
 }

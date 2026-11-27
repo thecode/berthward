@@ -318,6 +318,29 @@ export interface TaskConfig {
   timeout: number
   /** Hours between reminders while a script task keeps failing with the same output. */
   remind: number
+  /** Language of the code block a script task's output is posted in; '' for a plain block. */
+  highlight: string
+}
+
+/**
+ * What a task may name as the language of its output block. A fixed list,
+ * because the word is written into the message as it is.
+ */
+export const TASK_HIGHLIGHTS = ['diff', 'ansi', 'json', 'yaml']
+
+// One terminal escape sequence: CSI (ESC [ … letter, also one cut short), OSC
+// (ESC ] … BEL or ESC \), any shorter one, or an escape character on its own.
+const ESCAPE = /\x1b(?:\[[0-?]*[ -/]*[@-~]?|\][^\x07\x1b]*(?:\x07|\x1b\\)?|[ -/]*[0-~])?/g
+const COLOUR = /^\x1b\[[0-9;]*m$/
+
+/**
+ * Removes terminal escape sequences from a script's output. Discord shows
+ * them as stray characters, except colours inside an `ansi` block: with
+ * `keepColours` those stay and everything else (cursor moves, titles, links)
+ * still goes.
+ */
+export function cleanEscapes(text: string, keepColours: boolean): string {
+  return text.replace(ESCAPE, seq => (keepColours && COLOUR.test(seq) ? seq : ''))
 }
 
 /** Reads a task.json. Throws with a message meant for the user. */
@@ -338,6 +361,12 @@ export function parseTaskConfig(json: string): TaskConfig {
     }
     return v
   }
+  if (raw.highlight !== undefined) {
+    if (!TASK_HIGHLIGHTS.includes(raw.highlight)) {
+      throw new Error(`task.json: "highlight" must be one of ${TASK_HIGHLIGHTS.join(', ')}`)
+    }
+    if (raw.kind !== 'script') throw new Error('task.json: "highlight" is for a script task; a prompt task\'s answer is not posted as a code block')
+  }
   return {
     schedule: raw.schedule,
     cron: parseCron(raw.schedule),
@@ -345,6 +374,7 @@ export function parseTaskConfig(json: string): TaskConfig {
     enabled: raw.enabled !== false,
     timeout: num(raw.timeout, raw.kind === 'script' ? 300 : 900, 1, 3600, 'timeout'),
     remind: num(raw.remind, 24, 0, 720, 'remind'),
+    highlight: raw.highlight ?? '',
   }
 }
 
