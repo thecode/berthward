@@ -825,10 +825,10 @@ if [ "$rc" = 0 ] && [ -z "$out" ]; then pass "healthy disks, a sleeping disk and
   nvme /dev/nvme0 4 5 95 3 71
 } > "$TMP/smart-bad.json"
 run_dh env FAKE_SMART="$TMP/smart-bad.json"
-want="cache (Fast NVMe, S-nvme0): NVMe critical warning 0x04; 3 media errors; spare capacity is below its threshold; 90% of its rated life used or more; temperature at or above 70 °C
-parity (Bad HDD, S-sdd): the SMART health check FAILED; 8 reallocated sectors; 2 sectors waiting to be reallocated; Raw_Read_Error_Rate is below its threshold; temperature at or above 55 °C
-pool (Worn SSD, S-sdb): 10% of its life left or less"
-if [ "$rc" = 1 ] && [ "$out" = "$want" ]; then pass "failing disks are reported by Unraid name, one line each"; else fail "disk-health report wrong: rc=$rc
+want="- 🔴 cache (Fast NVMe, S-nvme0): NVMe critical warning 0x04; 3 media errors; spare capacity is below its threshold; 90% of its rated life used or more; temperature at or above 70 °C
+- 🔴 parity (Bad HDD, S-sdd): the SMART health check FAILED; 8 reallocated sectors; 2 sectors waiting to be reallocated; Raw_Read_Error_Rate is below its threshold; temperature at or above 55 °C
+- 🟡 pool (Worn SSD, S-sdb): 10% of its life left or less"
+if [ "$rc" = 1 ] && [ "$out" = "$want" ]; then pass "failing disks are reported by Unraid name, one line each, faults before warnings"; else fail "disk-health report wrong: rc=$rc
 $out"; fi
 case "$out" in *sde* | *sdf*) fail "a sleeping or a healthy disk was reported" ;; *) pass "a sleeping disk, and an SSD at a temperature fine for an SSD, are not reported" ;; esac
 
@@ -841,26 +841,109 @@ run_dh env FAKE_SMART="$TMP/smart-none.json" FAKE_SMART_ERR="docker: Cannot conn
 if [ "$rc" = 1 ] && [[ $out == *"could not read SMART data"*"Cannot connect"* ]]; then pass "a failed host call is reported"; else fail "disk-health hid a failed host call: rc=$rc $out"; fi
 echo '{"smartctl":{"exit_status":2,"messages":[{"string":"Smartctl open device: /dev/sdg failed: No such device","severity":"error"}]},"device":{"name":"/dev/sdg","type":"sat"}}' > "$TMP/smart-gone.json"
 run_dh env FAKE_SMART="$TMP/smart-gone.json"
-if [ "$rc" = 1 ] && [ "$out" = "/dev/sdg: SMART data could not be read" ]; then pass "a disk that does not answer is reported"; else fail "disk-health on a disk that does not answer: rc=$rc $out"; fi
+if [ "$rc" = 1 ] && [ "$out" = "- 🟡 /dev/sdg: SMART data could not be read" ]; then pass "a disk that does not answer is reported"; else fail "disk-health on a disk that does not answer: rc=$rc $out"; fi
 
 # --report: every disk with the values that are judged.
 DH_ARGS=--report run_dh env FAKE_SMART="$TMP/smart-good.json"
-want="cache (Fast NVMe, S-nvme0): SMART check passed, 44 °C, 12% of its rated life used, 0 media errors, 100% spare capacity
-disk1: asleep, not checked
-parity (Good HDD, S-sdd): SMART check passed, 38 °C, 0 reallocated sectors, 0 sectors waiting to be reallocated
-pool (Good SSD, S-sdb): SMART check passed, 40 °C, 0 reallocated sectors, 93% of its life left
+want="+ cache (Fast NVMe, S-nvme0): SMART check passed, 44 °C, 12% of its rated life used, 0 media errors, 100% spare capacity
+  disk1: asleep, not checked
++ parity (Good HDD, S-sdd): SMART check passed, 38 °C, 0 reallocated sectors, 0 sectors waiting to be reallocated
++ pool (Good SSD, S-sdb): SMART check passed, 40 °C, 0 reallocated sectors, 93% of its life left
 
 Limits: "
 if [ "$rc" = 0 ] && [[ $out == "$want"* ]]; then pass "--report lists every disk with its values, a sleeping one as skipped"; else fail "disk-health --report wrong: rc=$rc
 $out"; fi
 case "$out" in *"reallocated sectors above 0"*"55 °C (hard disk) or 70 °C (SSD)."*) pass "--report ends with the limits" ;; *) fail "--report does not show the limits: $out" ;; esac
 DH_ARGS=--report run_dh env FAKE_SMART="$TMP/smart-bad.json"
-if [ "$rc" = 1 ] && [[ $out == *"ATTENTION parity (Bad HDD, S-sdd): SMART check FAILED, 57 °C, 8 reallocated sectors"*"Needs attention:"*"parity (Bad HDD, S-sdd): the SMART health check FAILED; 8 reallocated sectors"* ]]; then pass "--report on failing disks is still an alert and names them"; else fail "disk-health --report with failing disks: rc=$rc
+if [ "$rc" = 1 ] && [[ $out == *"- 🔴 parity (Bad HDD, S-sdd): SMART check FAILED, 57 °C, 8 reallocated sectors"*"- 🟡 pool (Worn SSD, S-sdb): SMART check passed"*"Needs attention:"*"- 🔴 parity (Bad HDD, S-sdd): the SMART health check FAILED; 8 reallocated sectors"*"- 🟡 pool (Worn SSD"* ]]; then pass "--report on failing disks is still an alert and names them"; else fail "disk-health --report with failing disks: rc=$rc
 $out"; fi
 DH_ARGS=--report run_dh env FAKE_SMART="$TMP/smart-none.json"
 if [ "$rc" = 0 ] && [ "$out" = "No disk with SMART data was found." ]; then pass "--report with no disks says so"; else fail "disk-health --report with no disks: rc=$rc $out"; fi
 DH_ARGS=--wake run_dh env FAKE_SMART="$TMP/smart-good.json"
 if [ "$rc" = 2 ] && [[ $out == *"unknown argument --wake"* ]]; then pass "an unknown argument is refused"; else fail "disk-health with an unknown argument: rc=$rc $out"; fi
+
+# ── Example task: pool-health ────────────────────────────────────────────────
+# The real script, with a stand-in `host` that answers from three files: what
+# `zpool status -x` says, the pool list and `mdcmd status`.
+echo "example task: pool-health"
+POOL_HEALTH="$SHARE/task-examples/pool-health/check.sh"
+mkdir -p "$TMP/phbin"
+cat > "$TMP/phbin/host" <<'FAKE'
+#!/bin/bash
+case "$1 $2" in
+  "zpool status") [ -n "${FAKE_ZFS_ERR:-}" ] && { echo "$FAKE_ZFS_ERR"; exit 1; }; cat "$FAKE_DIR/zpool-status" ;;
+  "zpool list") cat "$FAKE_DIR/zpool-list" ;;
+  "mdcmd status") cat "$FAKE_DIR/mdcmd" ;;
+  *) exit 1 ;;
+esac
+FAKE
+chmod +x "$TMP/phbin/host"
+# PH_ARGS: the words `/run pool-health <words>` would pass.
+run_ph() { rc=0; out=$(PATH="$TMP/phbin:$PATH" FAKE_DIR="$1" bash "$POOL_HEALTH" ${PH_ARGS:+"$PH_ARGS"} 2>&1) || rc=$?; }
+slot() { printf 'rdevStatus.%s=%s\nrdevName.%s=%s\nrdevNumErrors.%s=%s\n' "$1" "$2" "$1" "$3" "$1" "$4"; } # slot <number> <status> <device> <errors>
+
+mkdir -p "$TMP/ph-good" "$TMP/ph-bad" "$TMP/ph-none"
+echo "all pools are healthy" > "$TMP/ph-good/zpool-status"
+printf 'cache\tONLINE\t928G\t310G\t618G\ntank\tONLINE\t14.5T\t9.1T\t5.4T\n' > "$TMP/ph-good/zpool-list"
+{ echo "mdState=STARTED"; echo "sbSyncErrs=0"; slot 0 DISK_OK sdb 0; slot 1 DISK_OK sdc 0; slot 2 DISK_OK sdd 0; slot 10 DISK_OK sde 0; slot 3 DISK_NP "" 0; slot 29 DISK_NP_DSBL "" 0; } > "$TMP/ph-good/mdcmd"
+run_ph "$TMP/ph-good"
+if [ "$rc" = 0 ] && [ -z "$out" ]; then pass "healthy pools and a healthy array are quiet"; else fail "pool-health not quiet: rc=$rc $out"; fi
+PH_ARGS=--report run_ph "$TMP/ph-good"
+want="+ ZFS pool cache: ONLINE, 310G of 928G used, 618G free
++ ZFS pool tank: ONLINE, 9.1T of 14.5T used, 5.4T free
++ Array: STARTED, 0 sync errors at the last parity check
++ Array parity (sdb): DISK_OK, 0 read/write errors
++ Array disk1 (sdc): DISK_OK, 0 read/write errors
++ Array disk2 (sdd): DISK_OK, 0 read/write errors
++ Array disk10 (sde): DISK_OK, 0 read/write errors"
+if [ "$rc" = 0 ] && [ "$out" = "$want" ]; then pass "--report lists the pools and the slots that hold a disk, in slot order"; else fail "pool-health --report wrong: rc=$rc
+$out"; fi
+
+printf '  pool: tank\n state: DEGRADED\n' > "$TMP/ph-bad/zpool-status"
+printf 'tank\tDEGRADED\t14.5T\t9.1T\t5.4T\n' > "$TMP/ph-bad/zpool-list"
+{ echo "mdState=STARTED"; echo "sbSyncErrs=4"; slot 0 DISK_OK sdb 0; slot 29 DISK_OK sdf 0; slot 1 DISK_OK sdc 12; slot 2 DISK_DSBL sdd 0; slot 3 DISK_NP_DSBL "" 0; } > "$TMP/ph-bad/mdcmd"
+run_ph "$TMP/ph-bad"
+want="- 🔴 ZFS:
+  pool: tank
+ state: DEGRADED
+- 🔴 Array disk2 (sdd): DISK_DSBL
+- 🔴 Array disk3 (no device): DISK_NP_DSBL
+- 🟡 Array disk1 (sdc): 12 read/write errors
+- 🟡 Array: the last parity check found 4 sync errors"
+if [ "$rc" = 1 ] && [ "$out" = "$want" ]; then pass "problems are listed, faults before warnings"; else fail "pool-health alert wrong: rc=$rc
+$out"; fi
+PH_ARGS=--report run_ph "$TMP/ph-bad"
+want="- 🔴 ZFS pool tank: DEGRADED, 9.1T of 14.5T used, 5.4T free
+- 🟡 Array: STARTED, 4 sync errors at the last parity check
++ Array parity (sdb): DISK_OK, 0 read/write errors
++ Array parity2 (sdf): DISK_OK, 0 read/write errors
+- 🟡 Array disk1 (sdc): DISK_OK, 12 read/write errors
+- 🔴 Array disk2 (sdd): DISK_DSBL, 0 read/write errors
+- 🔴 Array disk3 (no device): DISK_NP_DSBL
+
+Needs attention:
+- 🔴 ZFS:"
+if [ "$rc" = 1 ] && [[ $out == "$want"* ]]; then pass "--report with problems marks them and is still an alert"; else fail "pool-health --report with problems: rc=$rc
+$out"; fi
+
+echo "no pools available" > "$TMP/ph-none/zpool-status"
+: > "$TMP/ph-none/zpool-list"
+: > "$TMP/ph-none/mdcmd"
+run_ph "$TMP/ph-none"
+if [ "$rc" = 0 ] && [ -z "$out" ]; then pass "a server with no pools and no array is quiet"; else fail "pool-health with nothing to check: rc=$rc $out"; fi
+PH_ARGS=--report run_ph "$TMP/ph-none"
+want="  ZFS: no pools
+  Array: no answer from mdcmd status"
+if [ "$rc" = 0 ] && [ "$out" = "$want" ]; then pass "--report with nothing to check says so"; else fail "pool-health --report with nothing to check: rc=$rc
+$out"; fi
+FAKE_ZFS_ERR="docker: Cannot connect to the Docker daemon" run_ph "$TMP/ph-good"
+if [ "$rc" = 1 ] && [[ $out == "- 🟡 ZFS: zpool status failed:"*"Cannot connect"* ]]; then pass "a failed host call is reported"; else fail "pool-health hid a failed host call: rc=$rc $out"; fi
+PH_ARGS=--wake run_ph "$TMP/ph-good"
+if [ "$rc" = 2 ] && [[ $out == *"unknown argument --wake"* ]]; then pass "an unknown argument is refused"; else fail "pool-health with an unknown argument: rc=$rc $out"; fi
+
+for example in pool-health disk-health; do
+  if [ "$(jq -r .highlight "$SHARE/task-examples/$example/task.json")" = diff ]; then pass "$example asks for its output to be coloured as a diff"; else fail "$example/task.json has no \"highlight\": \"diff\""; fi
+done
 
 # ── Template change log from the release notes ───────────────────────────────
 echo "template change log"
